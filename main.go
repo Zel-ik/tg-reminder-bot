@@ -135,6 +135,12 @@ func main() {
 	c.Start()
 
 	// Команда для добавления пользователя
+	bot.Handle("/adduser", func(m *telebot.Message) {
+		addUser(m.Sender.Username, m.Chat.ID)
+		bot.Send(m.Sender, "Ты был добавлен в список пользователей!")
+	})
+
+	// Команда для установки напоминания с временем
 	bot.Handle("/setreminder", func(m *telebot.Message) {
 		reminderText := m.Text
 
