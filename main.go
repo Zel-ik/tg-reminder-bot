@@ -26,7 +26,7 @@ type User struct {
 type Reminder struct {
 	ID       int64
 	Text     string
-	SendTime time.Time // Храним время как строку "15:04"
+	SendTime string // Храним время как строку "HH:MM"
 }
 
 // Подключение к базе данных PostgreSQL
@@ -89,7 +89,7 @@ func main() {
 	}
 
 	// Функция добавления напоминания с временем
-	addReminder := func(text string, sendTime time.Time) {
+	addReminder := func(text string, sendTime string) {
 		reminder := &Reminder{Text: text, SendTime: sendTime}
 		_, err := db.Model(reminder).Insert()
 		if err != nil {
@@ -120,7 +120,7 @@ func main() {
 	err = db.Model(&reminders).Select()
 	if err == nil {
 		for _, r := range reminders { // Используем локальную переменную r
-			cronTime := fmt.Sprintf("%d %d * * *", r.SendTime.Minute(), r.SendTime.Hour()) // Минуты Часы
+			cronTime := fmt.Sprintf("%s %s * * *", r.SendTime[3:5], r.SendTime[0:2]) // Минуты Часы
 
 			// Используем замыкание, чтобы захватить r.Text
 			c.AddFunc(cronTime, func(text string) func() {
@@ -174,7 +174,7 @@ func main() {
 		cleanReminder = strings.Replace(cleanReminder, "/setreminder", "", 1)
 
 		// Сохраняем напоминание в БД
-		addReminder(cleanReminder, sendTime)
+		addReminder(cleanReminder, sendTime.Format("15:04")) // Сохраняем только время как строку
 		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %s", sendTime.Format("15:04")))
 
 		// Добавляем задачу в cron

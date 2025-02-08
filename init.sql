@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS reminders (
     id SERIAL PRIMARY KEY,
     text TEXT NOT NULL,
-    send_time TIME NOT NULL
+    send_time TEXT NOT NULL
 );
