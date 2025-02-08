@@ -187,6 +187,30 @@ func main() {
 		bot.Send(m.Chat, response)
 	})
 
+	// Команда для получения списка пользователей
+	bot.Handle("/listusers", func(m *telebot.Message) {
+		var users []User
+		err := db.Model(&users).Select()
+		if err != nil {
+			bot.Send(m.Chat, "Ошибка при получении списка пользователей.")
+			return
+		}
+
+		if len(users) == 0 {
+			bot.Send(m.Chat, "В базе данных пока нет пользователей.")
+			return
+		}
+
+		// Формируем список пользователей
+		var userList []string
+		for i, user := range users {
+			userList = append(userList, fmt.Sprintf("%d. @%s", i+1, user.Username))
+		}
+
+		response := "Список пользователей:\n" + strings.Join(userList, "\n")
+		bot.Send(m.Chat, response)
+	})
+
 	// Команда для удаления напоминания по ID
 	bot.Handle("/deletereminder", func(m *telebot.Message) {
 		args := strings.Split(m.Text, " ")
