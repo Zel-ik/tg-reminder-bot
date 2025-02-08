@@ -7,6 +7,7 @@ services:
     restart: always
     depends_on:
       - db
+    entrypoint: [ "./wait-for-it.sh", "db:5432", "--", "./bot" ]
     env_file:
       - .env
     networks:
@@ -21,10 +22,10 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: telegram_bot
     ports:
-      - "5432:5432"
+      - "5432:5432" # Это проброс порта, если нужен внешний доступ
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Сценарий инициализации БД
     networks:
       - bot_network
 
