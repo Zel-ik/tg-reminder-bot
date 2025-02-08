@@ -57,6 +57,14 @@ func main() {
 	}
 
 	db := connectDB()
+	query, err := os.ReadFile("init.sql")
+	if err != nil {
+		log.Fatal("Ошибка чтения init.sql:", err)
+	}
+	_, err = db.Exec(string(query))
+	if err != nil {
+		log.Fatal("Ошибка выполнения миграций:", err)
+	}
 	defer db.Close()
 
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
