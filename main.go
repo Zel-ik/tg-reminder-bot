@@ -41,8 +41,7 @@ func main() {
 	db := connectDB()
 	defer db.Close()
 
-	// Настройки Telegram бота
-	token := "7332416914:AAFQMCqXE1scYz7kbHnt2hMxpzO8g2i1Az0" // Твой API токен
+	token := "7332416914:AAFQMCqXE1scYz7kbHnt2hMxpzO8g2i1Az0"
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -102,7 +101,6 @@ func main() {
 		}
 	}
 
-	// Запускаем cron
 	c.Start()
 
 	// Команда для добавления пользователя
@@ -132,7 +130,7 @@ func main() {
 
 		sendTime := fmt.Sprintf("%02d:%02d", hour, minute)
 
-		// Убираем время из текста, оставляя только напоминание
+		// Убираем время и 'setreminder' из текста, оставляя только напоминание
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
 		cleanReminder = strings.Replace(cleanReminder, "/setreminder", "", 1)
 
