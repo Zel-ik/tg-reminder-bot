@@ -26,7 +26,7 @@ type User struct {
 type Reminder struct {
 	ID       int64
 	Text     string
-	SendTime string // Храним время как строку "15:04"
+	SendTime time.Time // Храним время как строку "15:04"
 }
 
 // Подключение к базе данных PostgreSQL
@@ -89,7 +89,7 @@ func main() {
 	}
 
 	// Функция добавления напоминания с временем
-	addReminder := func(text string, sendTime string) {
+	addReminder := func(text string, sendTime time.Time) {
 		reminder := &Reminder{Text: text, SendTime: sendTime}
 		_, err := db.Model(reminder).Insert()
 		if err != nil {
@@ -154,7 +154,7 @@ func main() {
 			return
 		}
 
-		sendTime := fmt.Sprintf("%02d:%02d", hour, minute)
+		sendTime, _ := time.Parse("15:04", matches[0]) // Парсим в time.Time
 
 		// Убираем время и 'setreminder' из текста, оставляя только напоминание
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
