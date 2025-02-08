@@ -119,12 +119,17 @@ func main() {
 	var reminders []Reminder
 	err = db.Model(&reminders).Select()
 	if err == nil {
-		for _, reminder := range reminders {
-			cronTime := fmt.Sprintf("%s %s * * *", reminder.SendTime[3:5], reminder.SendTime[0:2]) // Минуты Часы
-			c.AddFunc(cronTime, func() {
-				sendReminderToUsers(reminder.Text)
-			})
+		for _, r := range reminders { // Используем локальную переменную r
+			cronTime := fmt.Sprintf("%d %d * * *", r.SendTime.Minute(), r.SendTime.Hour()) // Минуты Часы
+
+			// Используем замыкание, чтобы захватить r.Text
+			c.AddFunc(cronTime, func(text string) func() {
+				return func() {
+					sendReminderToUsers(text)
+				}
+			}(r.Text))
 		}
+
 	}
 
 	c.Start()
