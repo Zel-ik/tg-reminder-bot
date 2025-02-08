@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    chat_id BIGINT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reminders (
+    id SERIAL PRIMARY KEY,
+    text TEXT NOT NULL,
+    send_time TIME NOT NULL
+);

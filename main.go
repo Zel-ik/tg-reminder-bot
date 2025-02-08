@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-pg/pg/v10"
+	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
 	"github.com/tucnak/telebot"
 )
@@ -29,19 +31,35 @@ type Reminder struct {
 
 // Подключение к базе данных PostgreSQL
 func connectDB() *pg.DB {
+	err := godotenv.Load() // Загружаем .env
+	if err != nil {
+		log.Fatal("Ошибка загрузки .env файла")
+	}
+
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+
 	return pg.Connect(&pg.Options{
-		Addr:     "localhost:5432",
-		User:     "postgres",
-		Password: "admin",
-		Database: "telegram_bot",
+		Addr:     fmt.Sprintf("%s:%s", dbHost, dbPort),
+		User:     dbUser,
+		Password: dbPassword,
+		Database: dbName,
 	})
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Ошибка загрузки .env файла")
+	}
+
 	db := connectDB()
 	defer db.Close()
 
-	token := "7332416914:AAFQMCqXE1scYz7kbHnt2hMxpzO8g2i1Az0"
+	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},

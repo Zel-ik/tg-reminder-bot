@@ -6,6 +6,7 @@ require (
 	github.com/go-pg/pg/v10 v10.14.0 // indirect
 	github.com/go-pg/zerochecker v0.2.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/mitchellh/hashstructure v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect

@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  bot:
+    build: .
+    container_name: telegram_bot
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - .env
+    networks:
+      - bot_network
+
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: telegram_bot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - bot_network
+
+networks:
+  bot_network:
+
+
+volumes:
+  pg_data:
