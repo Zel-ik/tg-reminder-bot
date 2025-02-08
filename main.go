@@ -135,12 +135,6 @@ func main() {
 	c.Start()
 
 	// Команда для добавления пользователя
-	bot.Handle("/adduser", func(m *telebot.Message) {
-		addUser(m.Sender.Username, m.Chat.ID)
-		bot.Send(m.Sender, "Ты был добавлен в список пользователей!")
-	})
-
-	// Команда для установки напоминания с временем
 	bot.Handle("/setreminder", func(m *telebot.Message) {
 		reminderText := m.Text
 
@@ -159,7 +153,15 @@ func main() {
 			return
 		}
 
-		sendTime, _ := time.Parse("15:04", matches[0]) // Парсим в time.Time
+		// Создаем время на основе текущей даты и введенного времени
+		currentTime := time.Now()                                                         // Текущая дата
+		sendTimeStr := fmt.Sprintf("%s %s", currentTime.Format("2006-01-02"), matches[0]) // Добавляем текущую дату
+		sendTime, err := time.Parse("2006-01-02 15:04", sendTimeStr)                      // Парсим в time.Time
+		if err != nil {
+			log.Println("Ошибка при парсинге времени:", err)
+			bot.Send(m.Sender, "Ошибка при обработке времени.")
+			return
+		}
 
 		// Убираем время и 'setreminder' из текста, оставляя только напоминание
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
@@ -167,7 +169,7 @@ func main() {
 
 		// Сохраняем напоминание в БД
 		addReminder(cleanReminder, sendTime)
-		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %s", sendTime))
+		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %s", sendTime.Format("15:04")))
 
 		// Добавляем задачу в cron
 		cronTime := fmt.Sprintf("%d %d * * 1-5", minute, hour)
@@ -175,7 +177,6 @@ func main() {
 		c.AddFunc(cronTime, func() {
 			sendReminderToUsers(cleanReminder)
 		})
-
 	})
 
 	// Команда для получения списка всех напоминаний
