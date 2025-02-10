@@ -106,10 +106,22 @@ func main() {
 			return
 		}
 
-		for _, user := range users {
-			message := fmt.Sprintf("@%s %s", user.Username, text)
-			bot.Send(&telebot.Chat{ID: user.ChatID}, message)
+		if len(users) == 0 {
+			log.Println("Нет пользователей для отправки напоминания.")
+			return
 		}
+
+		// Собираем всех пользователей в одно сообщение с тегами
+		var mentions []string
+		chatID := users[0].ChatID // Предполагаем, что все пользователи из одного чата
+
+		for _, user := range users {
+			mentions = append(mentions, fmt.Sprintf("@%s", user.Username))
+		}
+
+		// Отправляем одно сообщение с тегами всех пользователей
+		finalMessage := fmt.Sprintf("%s %s", strings.Join(mentions, " "), text)
+		bot.Send(&telebot.Chat{ID: chatID}, finalMessage)
 	}
 
 	// Настройка Cron для отправки сообщений в заданное время
