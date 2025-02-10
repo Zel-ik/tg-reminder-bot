@@ -160,25 +160,28 @@ func main() {
 		}
 
 		// Создаем время на основе текущей даты и введенного времени
-		currentTime := time.Now()                                                         // Текущая дата
-		sendTimeStr := fmt.Sprintf("%s %s", currentTime.Format("2006-01-02"), matches[0]) // Добавляем текущую дату
-		sendTime, err := time.Parse("2006-01-02 15:04", sendTimeStr)                      // Парсим в time.Time
+		currentTime := time.Now()
+		sendTimeStr := fmt.Sprintf("%s %s", currentTime.Format("2006-01-02"), matches[0])
+		sendTime, err := time.Parse("2006-01-02 15:04", sendTimeStr)
 		if err != nil {
 			log.Println("Ошибка при парсинге времени:", err)
 			bot.Send(m.Sender, "Ошибка при обработке времени.")
 			return
 		}
 
-		// Убираем время и 'setreminder' из текста, оставляя только напоминание
+		// Вычитаем 3 часа
+		sendTime = sendTime.Add(-3 * time.Hour)
+
+		// Убираем время и '/setreminder' из текста
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
 		cleanReminder = strings.Replace(cleanReminder, "/setreminder", "", 1)
 
 		// Сохраняем напоминание в БД
-		addReminder(cleanReminder, sendTime.Format("15:04")) // Сохраняем только время как строку
+		addReminder(cleanReminder, sendTime.Format("15:04")) // Сохраняем уже скорректированное время
 		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %s", sendTime.Format("15:04")))
 
-		// Добавляем задачу в cron
-		cronTime := fmt.Sprintf("%d %d * * 1-5", minute, hour)
+		// Добавляем задачу в cron (учитывая только будние дни 1-5)
+		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTime.Minute(), sendTime.Hour())
 
 		c.AddFunc(cronTime, func() {
 			sendReminderToUsers(cleanReminder)
