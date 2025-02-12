@@ -181,8 +181,8 @@ func main() {
 			return
 		}
 
-		// Вычитаем 3 часа
-		sendTime = sendTime.Add(-3 * time.Hour)
+		// Вычитаем 4 часа
+		sendTime = sendTime.Add(-4 * time.Hour)
 
 		// Убираем время и '/setreminder' из текста
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
@@ -216,7 +216,17 @@ func main() {
 
 		var response string
 		for _, rem := range reminders {
-			response += fmt.Sprintf("ID: %d | Время: %s | Напоминание: %s\n", rem.ID, rem.SendTime, rem.Text)
+			// Парсим сохранённое время
+			parsedTime, err := time.Parse("15:04", rem.SendTime)
+			if err != nil {
+				log.Println("Ошибка при парсинге времени:", err)
+				continue
+			}
+
+			// Добавляем 4 часа
+			adjustedTime := parsedTime.Add(4 * time.Hour).Format("15:04")
+
+			response += fmt.Sprintf("ID: %d | Время: %s | Напоминание: %s\n", rem.ID, adjustedTime, rem.Text)
 		}
 
 		bot.Send(m.Chat, response)
