@@ -181,8 +181,8 @@ func main() {
 			return
 		}
 
-		// Вычитаем 4 часа
-		sendTime = sendTime.Add(-4 * time.Hour)
+		// Вычитаем 3 часа
+		sendTime = sendTime.Add(-3 * time.Hour)
 
 		// Убираем время и '/setreminder' из текста
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
@@ -223,8 +223,8 @@ func main() {
 				continue
 			}
 
-			// Добавляем 4 часа
-			adjustedTime := parsedTime.Add(4 * time.Hour).Format("15:04")
+			// Добавляем 3 часа
+			adjustedTime := parsedTime.Add(3 * time.Hour).Format("15:04")
 
 			response += fmt.Sprintf("ID: %d | Время: %s | Напоминание: %s\n", rem.ID, adjustedTime, rem.Text)
 		}
