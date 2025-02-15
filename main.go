@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-pg/pg/v10"
 	"github.com/joho/godotenv"
-	"github.com/robfig/cron/v3"
 	"github.com/tucnak/telebot"
 )
 
@@ -82,25 +81,25 @@ func main() {
 	// Функция добавления пользователя в базу данных
 	addUser := func(username string, chatID int64) {
 		user := &User{Username: username, ChatID: chatID}
-		_, err := db.Model(user).OnConflict("(username) DO NOTHING").Insert()
+		_, err := db.Model(user).OnConflict("(username, chat_id) DO NOTHING").Insert() // Учитываем chat_id при уникальности
 		if err != nil {
 			log.Println("Ошибка при добавлении пользователя:", err)
 		}
 	}
 
-	// Функция добавления напоминания с временем
-	addReminder := func(text string, sendTime string) {
-		reminder := &Reminder{Text: text, SendTime: sendTime}
+	// Функция добавления напоминания с временем и chat_id
+	addReminder := func(text string, sendTime string, chatID int64) {
+		reminder := &Reminder{Text: text, SendTime: sendTime, ChatID: chatID}
 		_, err := db.Model(reminder).Insert()
 		if err != nil {
 			log.Println("Ошибка при добавлении напоминания:", err)
 		}
 	}
 
-	// Функция отправки сообщений всем пользователям
-	sendReminderToUsers := func(text string) {
+	// Функция отправки сообщений всем пользователям в конкретном чате
+	sendReminderToUsers := func(text string, chatID int64) {
 		var users []User
-		err := db.Model(&users).Select()
+		err := db.Model(&users).Where("chat_id = ?", chatID).Select() // Фильтруем пользователей по chat_id
 		if err != nil {
 			log.Println("Ошибка при получении пользователей:", err)
 			return
@@ -113,8 +112,6 @@ func main() {
 
 		// Собираем всех пользователей в одно сообщение с тегами
 		var mentions []string
-		chatID := users[0].ChatID // Предполагаем, что все пользователи из одного чата
-
 		for _, user := range users {
 			mentions = append(mentions, fmt.Sprintf("@%s", user.Username))
 		}
@@ -124,43 +121,10 @@ func main() {
 		bot.Send(&telebot.Chat{ID: chatID}, finalMessage)
 	}
 
-	// Настройка Cron для отправки сообщений в заданное время
-	c := cron.New()
-
-	// Загружаем все напоминания и создаем расписание
-	var reminders []Reminder
-	err = db.Model(&reminders).Select()
-	if err == nil {
-		for _, r := range reminders { // Используем локальную переменную r
-			cronTime := fmt.Sprintf("%s %s * * *", r.SendTime[3:5], r.SendTime[0:2]) // Минуты Часы
-
-			c.AddFunc(cronTime, func(text string) func() {
-				return func() {
-					day := time.Now().Weekday()
-					if day < time.Monday || day > time.Friday {
-						log.Println("Пропускаем задачу, так как сегодня выходной:", day)
-						return
-					}
-
-					log.Println("Отправка напоминания:", text)
-					sendReminderToUsers(text)
-				}
-			}(r.Text))
-		}
-
-	}
-
-	c.Start()
-
-	// Команда для добавления пользователя
-	bot.Handle("/adduser", func(m *telebot.Message) {
-		addUser(m.Sender.Username, m.Chat.ID)
-		bot.Send(m.Sender, "Ты был добавлен в список пользователей!")
-	})
-
-	// Команда для установки напоминания с временем
+	// Команда для установки напоминания с временем и chat_id
 	bot.Handle("/setreminder", func(m *telebot.Message) {
 		reminderText := m.Text
+		chatID := m.Chat.ID // Получаем chat_id из сообщения
 
 		// Ищем время в сообщении
 		matches := timeRegex.FindStringSubmatch(reminderText)
@@ -195,14 +159,14 @@ func main() {
 		cleanReminder = strings.Replace(cleanReminder, "/setreminder", "", 1)
 
 		// Сохраняем напоминание в БД
-		addReminder(cleanReminder, sendTime.Format("15:04")) // Сохраняем уже скорректированное время
+		addReminder(cleanReminder, sendTime.Format("15:04"), chatID) // Добавляем chatID в напоминание
 		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %s", sendTime.Format("15:04")))
 
 		// Добавляем задачу в cron (учитывая только будние дни 1-5)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTime.Minute(), sendTime.Hour())
 
 		c.AddFunc(cronTime, func() {
-			sendReminderToUsers(cleanReminder)
+			sendReminderToUsers(cleanReminder, chatID) // Отправляем напоминание в конкретный чат
 		})
 	})
 
