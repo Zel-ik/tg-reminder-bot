@@ -1,0 +1,47 @@
+name: Start and Stop Railway
+
+on:
+  schedule:
+    # Включение сервиса в 5:00 UTC (пн-пт)
+    - cron: "0 5 * * 1-5"
+    # Выключение сервиса в 14:00 UTC (пн-пт)
+    - cron: "0 14 * * 1-5"
+    # Выключение в 00:00 UTC (сб, вс)
+    - cron: "0 0 * * 6,0"
+
+jobs:
+  # Включение бота и БД
+  start-railway:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Bot Service
+        run: |
+          curl -X POST "https://backboard.railway.app/graphql" \
+          -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data "{\"query\":\"mutation { serviceStart(id:\\\"${{ secrets.RAILWAY_BOT_ID }}\\\") }\"}"
+
+      - name: Start DB Service
+        run: |
+          curl -X POST "https://backboard.railway.app/graphql" \
+          -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data "{\"query\":\"mutation { serviceStart(id:\\\"${{ secrets.RAILWAY_DB_ID }}\\\") }\"}"
+
+  # Выключение бота и БД
+  stop-railway:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stop Bot Service
+        run: |
+          curl -X POST "https://backboard.railway.app/graphql" \
+          -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data "{\"query\":\"mutation { serviceStop(id:\\\"${{ secrets.RAILWAY_BOT_ID }}\\\") }\"}"
+
+      - name: Stop DB Service
+        run: |
+          curl -X POST "https://backboard.railway.app/graphql" \
+          -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          --data "{\"query\":\"mutation { serviceStop(id:\\\"${{ secrets.RAILWAY_DB_ID }}\\\") }\"}"

@@ -134,9 +134,15 @@ func main() {
 		for _, r := range reminders { // Используем локальную переменную r
 			cronTime := fmt.Sprintf("%s %s * * *", r.SendTime[3:5], r.SendTime[0:2]) // Минуты Часы
 
-			// Используем замыкание, чтобы захватить r.Text
 			c.AddFunc(cronTime, func(text string) func() {
 				return func() {
+					day := time.Now().Weekday()
+					if day < time.Monday || day > time.Friday {
+						log.Println("Пропускаем задачу, так как сегодня выходной:", day)
+						return
+					}
+
+					log.Println("Отправка напоминания:", text)
 					sendReminderToUsers(text)
 				}
 			}(r.Text))
