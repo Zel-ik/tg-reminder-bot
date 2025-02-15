@@ -2,16 +2,33 @@ name: Start and Stop Railway
 
 on:
   schedule:
-    # Включение сервиса в 5:00 UTC (пн-пт)
-    - cron: "0 5 * * 1-5"
-    # Выключение сервиса в 14:00 UTC (пн-пт)
-    - cron: "0 14 * * 1-5"
-    # Выключение в 00:00 UTC (сб, вс)
-    - cron: "0 0 * * 6,0"
+    # Запуск по расписанию:
+    - cron: "0 5 * * 1-5"   # 5:00 UTC (пн-пт)
+    - cron: "0 14 * * 1-5"  # 14:00 UTC (пн-пт)
+    - cron: "0 0 * * 6,0"   # 00:00 UTC (сб, вс)
 
 jobs:
-  # Включение бота и БД
+  determine-run:
+    runs-on: ubuntu-latest
+    outputs:
+      run_action: ${{ steps.set_action.outputs.run_action }}
+    steps:
+      - id: set_action
+        run: |
+          # Получаем текущий час в формате HH (UTC)
+          HOUR=$(date -u +"%H")
+          echo "Current UTC hour: $HOUR"
+          if [ "$HOUR" = "05" ]; then
+            echo "::set-output name=run_action::start"
+          elif [ "$HOUR" = "14" ] || [ "$HOUR" = "00" ]; then
+            echo "::set-output name=run_action::stop"
+          else
+            echo "::set-output name=run_action::none"
+          fi
+
   start-railway:
+    needs: determine-run
+    if: ${{ needs.determine-run.outputs.run_action == 'start' }}
     runs-on: ubuntu-latest
     steps:
       - name: Start Bot Service
@@ -20,7 +37,6 @@ jobs:
           -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
           -H "Content-Type: application/json" \
           --data "{\"query\":\"mutation { serviceStart(id:\\\"${{ secrets.RAILWAY_BOT_ID }}\\\") }\"}"
-
       - name: Start DB Service
         run: |
           curl -X POST "https://backboard.railway.app/graphql" \
@@ -28,8 +44,9 @@ jobs:
           -H "Content-Type: application/json" \
           --data "{\"query\":\"mutation { serviceStart(id:\\\"${{ secrets.RAILWAY_DB_ID }}\\\") }\"}"
 
-  # Выключение бота и БД
   stop-railway:
+    needs: determine-run
+    if: ${{ needs.determine-run.outputs.run_action == 'stop' }}
     runs-on: ubuntu-latest
     steps:
       - name: Stop Bot Service
@@ -38,7 +55,6 @@ jobs:
           -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
           -H "Content-Type: application/json" \
           --data "{\"query\":\"mutation { serviceStop(id:\\\"${{ secrets.RAILWAY_BOT_ID }}\\\") }\"}"
-
       - name: Stop DB Service
         run: |
           curl -X POST "https://backboard.railway.app/graphql" \
