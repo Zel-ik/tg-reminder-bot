@@ -308,7 +308,7 @@ func main() {
 	// Обработчик команды /updatecron
 	bot.Handle("/updatecron", func(m *telebot.Message) {
 		updateCron(c, db, bot)
-		bot.Send(m.Chat, "Расписание напоминаний обновлено с учетом сдвига времени (+3 часа)!")
+		bot.Send(m.Chat, "Расписание напоминаний обновлено")
 	})
 
 	// Команда для получения списка пользователей
