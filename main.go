@@ -98,6 +98,53 @@ func main() {
 		}
 	}
 
+	// Функция удаления напоминания по ID
+	deleteReminder := func(id int64) {
+		reminder := &Reminder{ID: id}
+		_, err := db.Model(reminder).Where("id = ?", id).Delete()
+		if err != nil {
+			log.Println("Ошибка при удалении напоминания:", err)
+		}
+	}
+
+	// Функция получения списка пользователей для конкретного чата
+	listUsers := func(chatID int64) {
+		var users []User
+		err := db.Model(&users).Where("chat_id = ?", chatID).Select()
+		if err != nil {
+			log.Println("Ошибка при получении пользователей:", err)
+			return
+		}
+
+		if len(users) == 0 {
+			log.Println("Нет пользователей в этом чате.")
+			return
+		}
+
+		for _, user := range users {
+			log.Printf("User: %s (ID: %d, ChatID: %d)", user.Username, user.ID, user.ChatID)
+		}
+	}
+
+	// Функция получения списка напоминаний для конкретного чата
+	listReminders := func(chatID int64) {
+		var reminders []Reminder
+		err := db.Model(&reminders).Where("chat_id = ?", chatID).Select()
+		if err != nil {
+			log.Println("Ошибка при получении напоминаний:", err)
+			return
+		}
+
+		if len(reminders) == 0 {
+			log.Println("Нет напоминаний для этого чата.")
+			return
+		}
+
+		for _, reminder := range reminders {
+			log.Printf("Reminder: %s (ID: %d, Time: %s)", reminder.Text, reminder.ID, reminder.SendTime)
+		}
+	}
+
 	// Функция отправки сообщений всем пользователям в конкретном чате
 	sendReminderToUsers := func(text string, chatID int64) {
 		var users []User
@@ -203,6 +250,34 @@ func main() {
 		c.AddFunc(cronTime, func() {
 			sendReminderToUsers(cleanReminder, chatID) // Отправляем напоминание в конкретный чат
 		})
+	})
+
+	// Команда для удаления напоминания по ID
+	bot.Handle("/deletereminder", func(m *telebot.Message) {
+		args := strings.Split(m.Text, " ")
+		if len(args) < 2 {
+			bot.Send(m.Sender, "Укажите ID напоминания, которое хотите удалить.")
+			return
+		}
+
+		reminderID, err := strconv.ParseInt(args[1], 10, 64)
+		if err != nil {
+			bot.Send(m.Sender, "Неверный формат ID напоминания.")
+			return
+		}
+
+		deleteReminder(reminderID)
+		bot.Send(m.Sender, fmt.Sprintf("Напоминание с ID %d удалено.", reminderID))
+	})
+
+	// Команда для получения списка пользователей
+	bot.Handle("/listusers", func(m *telebot.Message) {
+		listUsers(m.Chat.ID)
+	})
+
+	// Команда для получения списка напоминаний
+	bot.Handle("/listreminders", func(m *telebot.Message) {
+		listReminders(m.Chat.ID)
 	})
 
 	// Запускаем бота
