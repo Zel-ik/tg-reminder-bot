@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-pg/pg/v10"
 	"github.com/joho/godotenv"
+	"github.com/robfig/cron/v3"
 	"github.com/tucnak/telebot"
 )
 
@@ -26,6 +27,7 @@ type Reminder struct {
 	ID       int64
 	Text     string
 	SendTime string // Храним время как строку "HH:MM"
+	ChatID   int64
 }
 
 // Подключение к базе данных PostgreSQL
@@ -121,6 +123,39 @@ func main() {
 		bot.Send(&telebot.Chat{ID: chatID}, finalMessage)
 	}
 
+	// Настройка Cron для отправки сообщений в заданное время
+	c := cron.New()
+
+	// Загружаем все напоминания и создаем расписание
+	var reminders []Reminder
+	err = db.Model(&reminders).Select()
+	if err == nil {
+		for _, r := range reminders {
+			cronTime := fmt.Sprintf("%s %s * * *", r.SendTime[3:5], r.SendTime[0:2]) // Минуты Часы
+
+			c.AddFunc(cronTime, func(text string, chatID int64) func() {
+				return func() {
+					day := time.Now().Weekday()
+					if day < time.Monday || day > time.Friday {
+						log.Println("Пропускаем задачу, так как сегодня выходной:", day)
+						return
+					}
+
+					log.Println("Отправка напоминания:", text)
+					sendReminderToUsers(text, chatID)
+				}
+			}(r.Text, r.ChatID))
+		}
+	}
+
+	c.Start()
+
+	// Команда для добавления пользователя
+	bot.Handle("/adduser", func(m *telebot.Message) {
+		addUser(m.Sender.Username, m.Chat.ID)
+		bot.Send(m.Sender, "Ты был добавлен в список пользователей!")
+	})
+
 	// Команда для установки напоминания с временем и chat_id
 	bot.Handle("/setreminder", func(m *telebot.Message) {
 		reminderText := m.Text
@@ -168,143 +203,6 @@ func main() {
 		c.AddFunc(cronTime, func() {
 			sendReminderToUsers(cleanReminder, chatID) // Отправляем напоминание в конкретный чат
 		})
-	})
-
-	// Команда для получения списка всех напоминаний
-	bot.Handle("/listreminders", func(m *telebot.Message) {
-		var reminders []Reminder
-		err := db.Model(&reminders).Select()
-		if err != nil {
-			bot.Send(m.Chat, "Ошибка при получении списка напоминаний!")
-			return
-		}
-
-		if len(reminders) == 0 {
-			bot.Send(m.Chat, "Нет сохранённых напоминаний!")
-			return
-		}
-
-		var response string
-		for _, rem := range reminders {
-			// Парсим сохранённое время
-			parsedTime, err := time.Parse("15:04", rem.SendTime)
-			if err != nil {
-				log.Println("Ошибка при парсинге времени:", err)
-				continue
-			}
-
-			// Добавляем 3 часа
-			adjustedTime := parsedTime.Add(3 * time.Hour).Format("15:04")
-
-			response += fmt.Sprintf("ID: %d | Время: %s | Напоминание: %s\n", rem.ID, adjustedTime, rem.Text)
-		}
-
-		bot.Send(m.Chat, response)
-	})
-
-	// Команда для получения списка пользователей
-	bot.Handle("/listusers", func(m *telebot.Message) {
-		var users []User
-		err := db.Model(&users).Select()
-		if err != nil {
-			bot.Send(m.Chat, "Ошибка при получении списка пользователей.")
-			return
-		}
-
-		if len(users) == 0 {
-			bot.Send(m.Chat, "В базе данных пока нет пользователей.")
-			return
-		}
-
-		// Формируем список пользователей
-		var userList []string
-		for i, user := range users {
-			userList = append(userList, fmt.Sprintf("%d. @%s", i+1, user.Username))
-		}
-
-		response := "Список пользователей:\n" + strings.Join(userList, "\n")
-		bot.Send(m.Chat, response)
-	})
-
-	// Команда для удаления напоминания по ID
-	bot.Handle("/deletereminder", func(m *telebot.Message) {
-		args := strings.Split(m.Text, " ")
-		if len(args) != 2 {
-			bot.Send(m.Chat, "Используй: /deletereminder <ID>")
-			return
-		}
-
-		id, err := strconv.Atoi(args[1])
-		if err != nil {
-			bot.Send(m.Chat, "Некорректный ID!")
-			return
-		}
-
-		// Удаляем напоминание из БД
-		res, err := db.Model((*Reminder)(nil)).Where("id = ?", id).Delete()
-		if err != nil || res.RowsAffected() == 0 {
-			bot.Send(m.Chat, "Ошибка! Напоминание с таким ID не найдено.")
-			return
-		}
-
-		bot.Send(m.Chat, fmt.Sprintf("Напоминание с ID %d удалено!", id))
-	})
-
-	// Команда для добавления списка пользователей
-	bot.Handle("/addusers", func(m *telebot.Message) {
-		args := strings.Split(m.Text, " ")[1:] // Берём все аргументы после команды
-		if len(args) == 0 {
-			bot.Send(m.Chat, "Используй: /addusers @user1 @user2 @user3")
-			return
-		}
-
-		var addedUsers []string
-
-		for _, username := range args {
-			username = strings.TrimPrefix(username, "@") // Убираем @ перед ником
-			if username == "" {
-				continue
-			}
-
-			user := &User{Username: username, ChatID: m.Chat.ID}
-			_, err := db.Model(user).OnConflict("(username) DO NOTHING").Insert()
-			if err != nil {
-				log.Println("Ошибка при добавлении пользователя:", err)
-				continue
-			}
-
-			addedUsers = append(addedUsers, "@"+username)
-		}
-
-		if len(addedUsers) == 0 {
-			bot.Send(m.Chat, "Не удалось добавить пользователей. Возможно, они уже в списке.")
-			return
-		}
-
-		bot.Send(m.Chat, fmt.Sprintf("Добавлены пользователи: %s", strings.Join(addedUsers, ", ")))
-	})
-
-	bot.Handle("/deleteuser", func(m *telebot.Message) {
-		args := strings.Split(m.Text, " ")[1:] // Берем все аргументы после команды
-		if len(args) != 1 {
-			bot.Send(m.Chat, "Используй: /deleteuser @username")
-			return
-		}
-
-		username := strings.TrimPrefix(args[0], "@") // Убираем @ перед ником
-		if username == "" {
-			bot.Send(m.Chat, "Неверный формат! Убедитесь, что вы указали правильный ник.")
-			return
-		}
-
-		// Ищем пользователя в базе данных и удаляем
-		res, err := db.Model((*User)(nil)).Where("username = ?", username).Delete()
-		if err != nil || res.RowsAffected() == 0 {
-			bot.Send(m.Chat, fmt.Sprintf("Пользователь @%s не найден в базе.", username))
-			return
-		}
-
-		bot.Send(m.Chat, fmt.Sprintf("Пользователь @%s удален из базы данных.", username))
 	})
 
 	// Запускаем бота
