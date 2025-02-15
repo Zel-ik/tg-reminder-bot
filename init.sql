@@ -7,6 +7,6 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS reminders (
     id SERIAL PRIMARY KEY,
     text TEXT NOT NULL,
-    send_time TIME NOT NULL,
+    send_time TEXT NOT NULL,
     chat_id BIGINT NOT NULL -- Добавляем chat_id в таблицу reminders, чтобы напоминания были привязаны к чатам
 );
