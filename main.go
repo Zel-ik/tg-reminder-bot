@@ -197,6 +197,41 @@ func main() {
 
 	c.Start()
 
+	// Команда для добавления нескольких пользователей
+	bot.Handle("/addusers", func(m *telebot.Message) {
+		args := strings.Split(m.Text, " ")[1:] // Берем все аргументы после команды
+		if len(args) == 0 {
+			bot.Send(m.Chat, "Используй: /addusers @user1 @user2 @user3")
+			return
+		}
+
+		var addedUsers []string
+
+		for _, username := range args {
+			username = strings.TrimPrefix(username, "@") // Убираем @ перед ником
+			if username == "" {
+				continue
+			}
+
+			// Добавляем пользователя в базу данных, учитывая chat_id
+			user := &User{Username: username, ChatID: m.Chat.ID}
+			_, err := db.Model(user).OnConflict("(username, chat_id) DO NOTHING").Insert() // Уникальность по (username, chat_id)
+			if err != nil {
+				log.Println("Ошибка при добавлении пользователя:", err)
+				continue
+			}
+
+			addedUsers = append(addedUsers, "@"+username)
+		}
+
+		if len(addedUsers) == 0 {
+			bot.Send(m.Chat, "Не удалось добавить пользователей. Возможно, они уже в списке.")
+			return
+		}
+
+		bot.Send(m.Chat, fmt.Sprintf("Добавлены пользователи: %s", strings.Join(addedUsers, ", ")))
+	})
+
 	// Команда для добавления пользователя
 	bot.Handle("/adduser", func(m *telebot.Message) {
 		addUser(m.Sender.Username, m.Chat.ID)
