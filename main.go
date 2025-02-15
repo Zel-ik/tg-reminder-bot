@@ -213,9 +213,9 @@ func main() {
 				continue
 			}
 
-			// Добавляем пользователя в базу данных, учитывая chat_id
+			// Добавляем пользователя в базу данных без проверки уникальности
 			user := &User{Username: username, ChatID: m.Chat.ID}
-			_, err := db.Model(user).OnConflict("(username, chat_id) DO NOTHING").Insert() // Уникальность по (username, chat_id)
+			_, err := db.Model(user).Insert()
 			if err != nil {
 				log.Println("Ошибка при добавлении пользователя:", err)
 				continue
@@ -225,7 +225,7 @@ func main() {
 		}
 
 		if len(addedUsers) == 0 {
-			bot.Send(m.Chat, "Не удалось добавить пользователей. Возможно, они уже в списке.")
+			bot.Send(m.Chat, "Не удалось добавить пользователей.")
 			return
 		}
 
