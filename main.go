@@ -337,20 +337,20 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 	}
 
 	for _, r := range reminders {
-		// Парсим время из формата "HH:MM"
+		// Парсим сохранённое время (в формате "HH:MM")
 		parsedTime, err := time.Parse("15:04", r.SendTime)
 		if err != nil {
 			log.Println("Ошибка при парсинге времени напоминания:", err)
 			continue
 		}
 
-		// Добавляем 3 часа
+		// Добавляем 3 часа к времени напоминания
 		adjustedTime := parsedTime.Add(3 * time.Hour)
 
 		// Формируем строку для Cron (Минуты Часы * * 1-5)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", adjustedTime.Minute(), adjustedTime.Hour())
 
-		// Добавляем задачу в Cron
+		// Добавляем напоминание в Cron для конкретного чата
 		c.AddFunc(cronTime, func(chatID int64, text string) func() {
 			return func() {
 				day := time.Now().Weekday()
@@ -366,5 +366,5 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 	}
 
 	c.Start()
-	log.Println("Cron успешно обновлен с учетом +3 часа к напоминаниям!")
+	log.Println("✅ Cron успешно обновлён для всех чатов с учетом +3 часа ко времени напоминаний!")
 }
