@@ -253,13 +253,6 @@ func main() {
 			return
 		}
 
-		// Загружаем временную зону Москвы
-		loc, err := time.LoadLocation("Europe/Moscow")
-		if err != nil {
-			log.Println("Ошибка загрузки временной зоны, используем UTC+3 по умолчанию:", err)
-			loc = time.FixedZone("MSK", 3*60*60) // Фиксированное UTC+3
-		}
-
 		// Преобразуем время в строку формата "15:04"
 		hour, _ := strconv.Atoi(matches[1])
 		minute, _ := strconv.Atoi(matches[2])
@@ -268,10 +261,15 @@ func main() {
 			return
 		}
 
-		// Создаем время на основе текущей даты и введенного времени
-		currentTime := time.Now().In(loc) //  Используем московскую зону
+		// Фиксированная временная зона UTC+3 (Москва)
+		mskZone := time.FixedZone("MSK", 3*60*60)
+
+		// Получаем текущую дату и добавляем введенное время
+		currentTime := time.Now().In(mskZone)
 		sendTimeStr := fmt.Sprintf("%s %s", currentTime.Format("2006-01-02"), matches[0])
-		sendTime, err := time.ParseInLocation("2006-01-02 15:04", sendTimeStr, loc)
+
+		// Парсим время с учетом MSK (UTC+3)
+		sendTime, err := time.ParseInLocation("2006-01-02 15:04", sendTimeStr, mskZone)
 		if err != nil {
 			log.Println("Ошибка при парсинге времени:", err)
 			bot.Send(m.Sender, "Ошибка при обработке времени.")
@@ -284,7 +282,7 @@ func main() {
 
 		// Сохраняем напоминание в БД
 		addReminder(cleanReminder, sendTime.Format("15:04"), chatID) // Добавляем chatID в напоминание
-		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %s", sendTime.Format("15:04")))
+		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %s (MSK)", sendTime.Format("15:04")))
 
 		// Добавляем задачу в cron (учитывая только будние дни 1-5)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTime.Minute(), sendTime.Hour())
@@ -343,10 +341,6 @@ func init() {
 	if err != nil {
 		log.Fatal("Ошибка загрузки временной зоны Калифорнии:", err)
 	}
-}
-
-func convertToUTC3(t time.Time) time.Time {
-	return t.In(locUTC3)
 }
 
 // Функция обновления Cron с учетом временных зон
