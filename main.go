@@ -30,27 +30,6 @@ type Reminder struct {
 	ChatID   int64
 }
 
-// Подключение к базе данных PostgreSQL
-func connectDB() *pg.DB {
-	err := godotenv.Load() // Загружаем .env
-	if err != nil {
-		log.Fatal("Ошибка загрузки .env файла")
-	}
-
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-
-	return pg.Connect(&pg.Options{
-		Addr:     fmt.Sprintf("%s:%s", dbHost, dbPort),
-		User:     dbUser,
-		Password: dbPassword,
-		Database: dbName,
-	})
-}
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -80,79 +59,10 @@ func main() {
 	// Регулярное выражение для поиска времени в формате HH:MM
 	timeRegex := regexp.MustCompile(`\b(\d{1,2}):(\d{2})\b`)
 
-	// Функция добавления пользователя в базу данных
-	addUser := func(username string, chatID int64) {
-		user := &User{Username: username, ChatID: chatID}
-		_, err := db.Model(user).OnConflict("(username, chat_id) DO NOTHING").Insert() // Учитываем chat_id при уникальности
-		if err != nil {
-			log.Println("Ошибка при добавлении пользователя:", err)
-		}
-	}
-
-	// Функция добавления напоминания с временем и chat_id
-	addReminder := func(text string, sendTime string, chatID int64) {
-		reminder := &Reminder{Text: text, SendTime: sendTime, ChatID: chatID}
-		_, err := db.Model(reminder).Insert()
-		if err != nil {
-			log.Println("Ошибка при добавлении напоминания:", err)
-		}
-	}
-
-	// Функция удаления напоминания по ID
-	deleteReminder := func(id int64) {
-		reminder := &Reminder{ID: id}
-		_, err := db.Model(reminder).Where("id = ?", id).Delete()
-		if err != nil {
-			log.Println("Ошибка при удалении напоминания:", err)
-		}
-	}
-
-	// Функция получения списка пользователей для конкретного чата
-	listUsers := func(chatID int64) {
-		var users []User
-		err := db.Model(&users).Where("chat_id = ?", chatID).Select()
-		if err != nil {
-			log.Println("Ошибка при получении пользователей:", err)
-			return
-		}
-
-		if len(users) == 0 {
-			log.Println("Нет пользователей в этом чате.")
-			return
-		}
-
-		for _, user := range users {
-			log.Printf("User: %s (ID: %d, ChatID: %d)", user.Username, user.ID, user.ChatID)
-		}
-	}
-
-	// Функция получения списка напоминаний для конкретного чата
-	listReminders := func(chatID int64) {
-		var reminders []Reminder
-		err := db.Model(&reminders).Where("chat_id = ?", chatID).Select()
-		if err != nil {
-			log.Println("Ошибка при получении напоминаний:", err)
-			return
-		}
-
-		if len(reminders) == 0 {
-			log.Println("Нет напоминаний для этого чата.")
-			return
-		}
-
-		for _, reminder := range reminders {
-			log.Printf("Reminder: %s (ID: %d, Time: %s)", reminder.Text, reminder.ID, reminder.SendTime)
-		}
-	}
-
 	// Функция отправки сообщений всем пользователям в конкретном чате
 	sendReminderToUsers := func(text string, chatID int64) {
 		var users []User
-		err := db.Model(&users).Where("chat_id = ?", chatID).Select() // Фильтруем пользователей по chat_id
-		if err != nil {
-			log.Println("Ошибка при получении пользователей:", err)
-			return
-		}
+		getUsers(&users, chatID)
 
 		if len(users) == 0 {
 			log.Println("Нет пользователей для отправки напоминания.")
@@ -258,9 +168,6 @@ func main() {
 			return
 		}
 
-		// Временная зона сервера (Калифорния, UTC-8)
-		serverLoc, _ := time.LoadLocation("America/Los_Angeles")
-
 		// Московское время (UTC+3) фиксированное, так как мы убрали загрузку зоны
 		mskOffset := 3 * 60 * 60
 
@@ -268,9 +175,6 @@ func main() {
 		now := time.Now().UTC().Unix() + int64(mskOffset) // Переводим в UTC+3
 		mskTime := time.Unix(now, 0).UTC()
 		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour, minute, 0, 0, time.UTC)
-
-		// Конвертируем в локальное время сервера
-		serverTime := sendTimeUTC.In(serverLoc)
 
 		// Убираем время и '/setreminder' из текста
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
@@ -282,7 +186,7 @@ func main() {
 		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
 
 		// Добавляем задачу в cron (по локальному времени сервера)
-		cronTime := fmt.Sprintf("%d %d * * 1-5", serverTime.Minute(), serverTime.Hour())
+		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
 
 		c.AddFunc(cronTime, func() {
 			sendReminderToUsers(cleanReminder, chatID)
@@ -320,7 +224,13 @@ func main() {
 
 	// Команда для получения списка напоминаний
 	bot.Handle("/listreminders", func(m *telebot.Message) {
-		listReminders(m.Chat.ID)
+		message, err := listReminders(m.Chat.ID)
+		if err != nil {
+			log.Println("Ошибка при получении напоминаний:", err)
+			bot.Send(m.Chat, "Произошла ошибка при получении напоминаний.")
+			return
+		}
+		bot.Send(m.Chat, message)
 	})
 
 	// Запускаем бота
@@ -339,9 +249,6 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 		return
 	}
 
-	// Локальное время сервера (Калифорния, UTC-8)
-	serverLoc, _ := time.LoadLocation("America/Los_Angeles")
-
 	// Смещение Москвы (UTC+3)
 	mskOffset := 3 * 60 * 60
 
@@ -358,11 +265,8 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 		mskTime := time.Unix(now, 0).UTC()
 		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), parsedTime.Hour(), parsedTime.Minute(), 0, 0, time.UTC)
 
-		// Конвертируем в локальное время сервера
-		serverTime := sendTimeUTC.In(serverLoc)
-
 		// Формируем cron-выражение
-		cronTime := fmt.Sprintf("%d %d * * 1-5", serverTime.Minute(), serverTime.Hour())
+		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
 
 		// Добавляем в cron
 		c.AddFunc(cronTime, func(chatID int64, text string) func() {
