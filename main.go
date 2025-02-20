@@ -145,7 +145,7 @@ func main() {
 	// Команда для добавления пользователя
 	bot.Handle("/adduser", func(m *telebot.Message) {
 		addUser(m.Sender.Username, m.Chat.ID)
-		bot.Send(m.Sender, "Ты был добавлен в список пользователей!")
+		bot.Send(m.Chat, "Ты был добавлен в список пользователей!")
 	})
 
 	// Команда для установки напоминания с временем и chat_id
@@ -156,7 +156,7 @@ func main() {
 		// Ищем время в сообщении
 		matches := timeRegex.FindStringSubmatch(reminderText)
 		if len(matches) != 3 {
-			bot.Send(m.Sender, "Неверный формат! Используй: /setreminder HH:MM текст напоминания")
+			bot.Send(m.Chat, "Неверный формат! Используй: /setreminder HH:MM текст напоминания")
 			return
 		}
 
@@ -164,17 +164,14 @@ func main() {
 		hour, _ := strconv.Atoi(matches[1])
 		minute, _ := strconv.Atoi(matches[2])
 		if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
-			bot.Send(m.Sender, "Неверное время! Используй формат HH:MM, например, 09:30")
+			bot.Send(m.Chat, "Неверное время! Используй формат HH:MM, например, 09:30")
 			return
 		}
 
 		// Московское время (UTC+3) фиксированное, так как мы убрали загрузку зоны
 		mskOffset := 3 * 60 * 60
 
-		// Получаем текущее московское время с указанным часом и минутами
-		now := time.Now().UTC().Unix() + int64(mskOffset) // Переводим в UTC+3
-		mskTime := time.Unix(now, 0).UTC()
-		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour, minute, 0, 0, time.UTC)
+
 
 		// Убираем время и '/setreminder' из текста
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
@@ -183,8 +180,13 @@ func main() {
 		// Сохраняем напоминание в БД
 		addReminder(cleanReminder, fmt.Sprintf("%02d:%02d", hour, minute), chatID)
 
-		bot.Send(m.Sender, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
-
+		bot.Send(m.Chat, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
+		
+		// Получаем текущее московское время с указанным часом и минутами
+		now := time.Now().UTC().Unix() + int64(mskOffset) // Переводим в UTC+3
+		mskTime := time.Unix(now, 0).UTC()
+		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour, minute, 0, 0, time.UTC)
+		
 		// Добавляем задачу в cron (по локальному времени сервера)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
 
@@ -197,18 +199,18 @@ func main() {
 	bot.Handle("/deletereminder", func(m *telebot.Message) {
 		args := strings.Split(m.Text, " ")
 		if len(args) < 2 {
-			bot.Send(m.Sender, "Укажите ID напоминания, которое хотите удалить.")
+			bot.Send(m.Chat, "Укажите ID напоминания, которое хотите удалить.")
 			return
 		}
 
 		reminderID, err := strconv.ParseInt(args[1], 10, 64)
 		if err != nil {
-			bot.Send(m.Sender, "Неверный формат ID напоминания.")
+			bot.Send(m.Chat, "Неверный формат ID напоминания.")
 			return
 		}
 
 		deleteReminder(reminderID)
-		bot.Send(m.Sender, fmt.Sprintf("Напоминание с ID %d удалено.", reminderID))
+		bot.Send(m.Chat, fmt.Sprintf("Напоминание с ID %d удалено.", reminderID))
 	})
 
 	// Обработчик команды /updatecron
