@@ -71,7 +71,6 @@ func listReminders(chatID int64) (string, error) {
 	for _, reminder := range reminders {
 		timeString = strings.Split(reminder.SendTime, ":")
 		hour, _ := strconv.Atoi(timeString[0])
-		hour += 3
 		minute, _ := strconv.Atoi(timeString[0])
 		message.WriteString(fmt.Sprintf("- ID: %d, Время: %02d:%02d, Текст: %s\n", reminder.ID, hour, minute, reminder.Text))
 	}
