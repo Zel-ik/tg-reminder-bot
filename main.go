@@ -252,6 +252,8 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 	// Смещение Москвы (UTC+3)
 	mskOffset := 3 * 60 * 60
 
+	var users []User
+
 	for _, r := range reminders {
 		// Парсим сохранённое время (формат "HH:MM")
 		parsedTime, err := time.Parse("15:04", r.SendTime)
@@ -267,7 +269,12 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 
 		// Формируем cron-выражение
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
-
+		getUsers(&users, r.ChatID)
+		var message strings.Builder
+		for _, user := range users {
+			message.WriteString(fmt.Sprintf("@%s,", user.Username))
+		}
+		message.WriteString(r.Text)
 		// Добавляем в cron
 		c.AddFunc(cronTime, func(chatID int64, text string) func() {
 			return func() {
@@ -279,7 +286,7 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 				log.Println("Отправка напоминания:", text)
 				bot.Send(&telebot.Chat{ID: chatID}, text)
 			}
-		}(r.ChatID, r.Text))
+		}(r.ChatID, message.String()))
 	}
 
 	c.Start()
