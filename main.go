@@ -168,11 +168,6 @@ func main() {
 			return
 		}
 
-		// Московское время (UTC+3) фиксированное, так как мы убрали загрузку зоны
-		mskOffset := 3 * 60 * 60
-
-
-
 		// Убираем время и '/setreminder' из текста
 		cleanReminder := strings.TrimSpace(strings.Replace(reminderText, matches[0], "", 1))
 		cleanReminder = strings.Replace(cleanReminder, "/setreminder", "", 1)
@@ -181,12 +176,11 @@ func main() {
 		addReminder(cleanReminder, fmt.Sprintf("%02d:%02d", hour, minute), chatID)
 
 		bot.Send(m.Chat, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
-		
-		// Получаем текущее московское время с указанным часом и минутами
-		now := time.Now().UTC().Unix() + int64(mskOffset) // Переводим в UTC+3
+
+		now := time.Now().UTC().Unix()
 		mskTime := time.Unix(now, 0).UTC()
-		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour, minute, 0, 0, time.UTC)
-		
+		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour-3, minute, 0, 0, time.UTC)
+
 		// Добавляем задачу в cron (по локальному времени сервера)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
 
@@ -221,7 +215,19 @@ func main() {
 
 	// Команда для получения списка пользователей
 	bot.Handle("/listusers", func(m *telebot.Message) {
-		listUsers(m.Chat.ID)
+		users, err := listUsers(m.Chat.ID)
+		if err != nil {
+			log.Println("Ошибка при получении пользователей:", err)
+		}
+		if len(users) == 0 {
+			bot.Send(m.Chat, "Ни один пользователь не добавлен")
+		}
+
+		var mentions []string
+		for _, value := range users {
+			mentions = append(mentions, fmt.Sprintln(value.Username))
+		}
+		bot.Send(m.Chat, mentions)
 	})
 
 	// Команда для получения списка напоминаний
@@ -273,6 +279,11 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 		// Добавляем в cron
 		c.AddFunc(cronTime, func(chatID int64, text string) func() {
 			return func() {
+				day := time.Now().Weekday()
+				if day < time.Monday || day > time.Friday {
+					log.Println("Пропускаем задачу, так как сегодня выходной:", day)
+					return
+				}
 				log.Println("Отправка напоминания:", text)
 				bot.Send(&telebot.Chat{ID: chatID}, text)
 			}

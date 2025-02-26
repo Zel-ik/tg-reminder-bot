@@ -29,6 +29,14 @@ func connectDB() *pg.DB {
 		Database: dbName,
 	})
 
+	log.Printf("Подключение к базе данных: host=%s port=%s user=%s dbname=%s", dbHost, dbPort, dbUser, dbName)
+
+	// Проверяем соединение с базой
+	_, err = db.Exec("SELECT 1")
+	if err != nil {
+		log.Fatalf("Ошибка подключения к базе данных: %v", err)
+	}
+
 	return db
 }
 
@@ -66,22 +74,24 @@ func listReminders(chatID int64) (string, error) {
 }
 
 // Функция получения списка пользователей для конкретного чата
-func listUsers(chatID int64) {
+func listUsers(chatID int64) ([]User, error) {
 	var users []User
 	err := db.Model(&users).Where("chat_id = ?", chatID).Select()
 	if err != nil {
 		log.Println("Ошибка при получении пользователей:", err)
-		return
+		return users, err
 	}
 
 	if len(users) == 0 {
 		log.Println("Нет пользователей в этом чате.")
-		return
+		return users, err
 	}
 
 	for _, user := range users {
 		log.Printf("User: %s (ID: %d, ChatID: %d)", user.Username, user.ID, user.ChatID)
 	}
+
+	return users, nil
 }
 
 // Функция удаления напоминания по ID
