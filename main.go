@@ -47,7 +47,7 @@ func main() {
 	}
 	defer db.Close()
 
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
+	token := "7332416914:AAFQMCqXE1scYz7kbHnt2hMxpzO8g2i1Az0"
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -162,7 +162,6 @@ func main() {
 
 		// Преобразуем время в числа
 		hour, _ := strconv.Atoi(matches[1])
-		hour -= 3
 		minute, _ := strconv.Atoi(matches[2])
 		if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
 			bot.Send(m.Chat, "Неверное время! Используй формат HH:MM, например, 09:30")
@@ -180,7 +179,7 @@ func main() {
 
 		now := time.Now().UTC().Unix()
 		mskTime := time.Unix(now, 0).UTC()
-		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour, minute, 0, 0, time.UTC)
+		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour-3, minute, 0, 0, time.UTC)
 
 		// Добавляем задачу в cron (по локальному времени сервера)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
@@ -216,19 +215,11 @@ func main() {
 
 	// Команда для получения списка пользователей
 	bot.Handle("/listusers", func(m *telebot.Message) {
-		users, err := listUsers(m.Chat.ID)
+		message, err := listUsers(m.Chat.ID)
 		if err != nil {
 			log.Println("Ошибка при получении пользователей:", err)
 		}
-		if len(users) == 0 {
-			bot.Send(m.Chat, "Ни один пользователь не добавлен")
-		}
-
-		var mentions []string
-		for _, value := range users {
-			mentions = append(mentions, fmt.Sprintln(value.Username))
-		}
-		bot.Send(m.Chat, mentions)
+		bot.Send(m.Chat, message)
 	})
 
 	// Команда для получения списка напоминаний
@@ -272,7 +263,7 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 		// Устанавливаем московское время
 		now := time.Now().UTC().Unix() + int64(mskOffset)
 		mskTime := time.Unix(now, 0).UTC()
-		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), parsedTime.Hour(), parsedTime.Minute(), 0, 0, time.UTC)
+		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), parsedTime.Hour()-3, parsedTime.Minute(), 0, 0, time.UTC)
 
 		// Формируем cron-выражение
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-pg/pg/v10"
@@ -66,32 +67,39 @@ func listReminders(chatID int64) (string, error) {
 	var message strings.Builder
 	message.WriteString("Ваши напоминания:\n")
 
+	var timeString []string
 	for _, reminder := range reminders {
-		message.WriteString(fmt.Sprintf("- ID: %d, Время: %s, Текст: %s\n", reminder.ID, reminder.SendTime, reminder.Text))
+		timeString = strings.Split(reminder.SendTime, ":")
+		hour, _ := strconv.Atoi(timeString[0])
+		hour += 3
+		minute, _ := strconv.Atoi(timeString[0])
+		message.WriteString(fmt.Sprintf("- ID: %d, Время: %02d:%02d, Текст: %s\n", reminder.ID, hour, minute, reminder.Text))
 	}
 
 	return message.String(), nil
 }
 
 // Функция получения списка пользователей для конкретного чата
-func listUsers(chatID int64) ([]User, error) {
+func listUsers(chatID int64) (string, error) {
 	var users []User
 	err := db.Model(&users).Where("chat_id = ?", chatID).Select()
 	if err != nil {
 		log.Println("Ошибка при получении пользователей:", err)
-		return users, err
+		return "", err
 	}
 
 	if len(users) == 0 {
 		log.Println("Нет пользователей в этом чате.")
-		return users, err
+		return "У вас нет напоминаний.", nil
 	}
+	var message strings.Builder
+	message.WriteString("Список пользователей:\n")
 
 	for _, user := range users {
-		log.Printf("User: %s (ID: %d, ChatID: %d)", user.Username, user.ID, user.ChatID)
+		message.WriteString(fmt.Sprintf("- ID: %d, Username: %s\n", user.ID, user.Username))
 	}
 
-	return users, nil
+	return message.String(), nil
 }
 
 // Функция удаления напоминания по ID
