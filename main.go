@@ -162,6 +162,7 @@ func main() {
 
 		// Преобразуем время в числа
 		hour, _ := strconv.Atoi(matches[1])
+		hour -= 3
 		minute, _ := strconv.Atoi(matches[2])
 		if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
 			bot.Send(m.Chat, "Неверное время! Используй формат HH:MM, например, 09:30")
@@ -179,7 +180,7 @@ func main() {
 
 		now := time.Now().UTC().Unix()
 		mskTime := time.Unix(now, 0).UTC()
-		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour-3, minute, 0, 0, time.UTC)
+		sendTimeUTC := time.Date(mskTime.Year(), mskTime.Month(), mskTime.Day(), hour, minute, 0, 0, time.UTC)
 
 		// Добавляем задачу в cron (по локальному времени сервера)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
