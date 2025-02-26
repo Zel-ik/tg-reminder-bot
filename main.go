@@ -47,7 +47,7 @@ func main() {
 	}
 	defer db.Close()
 
-	token := "7332416914:AAFQMCqXE1scYz7kbHnt2hMxpzO8g2i1Az0"
+	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	bot, err := telebot.NewBot(telebot.Settings{
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
