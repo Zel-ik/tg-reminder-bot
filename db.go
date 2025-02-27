@@ -110,6 +110,15 @@ func deleteReminder(id int64) {
 	}
 }
 
+// Функция удаления напоминания по ID
+func deleteUser(id int64) {
+	user := &User{ID: id}
+	_, err := db.Model(user).Where("id = ?", id).Delete()
+	if err != nil {
+		log.Println("Ошибка при удалении напоминания:", err)
+	}
+}
+
 // Функция добавления напоминания с временем и chat_id
 func addReminder(text string, sendTime string, chatID int64) {
 	reminder := &Reminder{Text: text, SendTime: sendTime, ChatID: chatID}

@@ -206,6 +206,23 @@ func main() {
 		deleteReminder(reminderID)
 		bot.Send(m.Chat, fmt.Sprintf("Напоминание с ID %d удалено.", reminderID))
 	})
+	// Команда для удаления напоминания по ID
+	bot.Handle("/deleteuser", func(m *telebot.Message) {
+		args := strings.Split(m.Text, " ")
+		if len(args) != 1 {
+			bot.Send(m.Chat, "Укажите только ID пользователя, которого хотите удалить.")
+			return
+		}
+
+		userID, err := strconv.ParseInt(args[1], 10, 64)
+		if err != nil {
+			bot.Send(m.Chat, "Неверный формат ID пользователя.")
+			return
+		}
+
+		deleteUser(userID)
+		bot.Send(m.Chat, fmt.Sprintf("Пользователь с ID %d удален.", userID))
+	})
 
 	// Обработчик команды /updatecron
 	bot.Handle("/updatecron", func(m *telebot.Message) {
@@ -240,7 +257,10 @@ func main() {
 // Функция обновления Cron с учетом временных зон
 func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 	c.Stop()
-	c = cron.New()
+	entries := c.Entries()
+	for _, val := range entries {
+		c.Remove(val.ID)
+	}
 
 	var reminders []Reminder
 	err := db.Model(&reminders).Select()
@@ -288,7 +308,6 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 			}
 		}(r.ChatID, message.String()))
 	}
-
 	c.Start()
 	log.Println("✅ Cron обновлён для корректного времени!")
 }
