@@ -89,7 +89,7 @@ func listUsers(chatID int64) (string, error) {
 
 	if len(users) == 0 {
 		log.Println("Нет пользователей в этом чате.")
-		return "У вас нет напоминаний.", nil
+		return "Нет пользователей в этом чате.", nil
 	}
 	var message strings.Builder
 	message.WriteString("Список пользователей:\n")

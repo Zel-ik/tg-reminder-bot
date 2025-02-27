@@ -191,7 +191,7 @@ func main() {
 
 	// Команда для удаления напоминания по ID
 	bot.Handle("/deletereminder", func(m *telebot.Message) {
-		args := strings.Split(m.Text, " ")
+		args := strings.Fields(strings.TrimSpace(m.Text))
 		if len(args) < 2 {
 			bot.Send(m.Chat, "Укажите ID напоминания, которое хотите удалить.")
 			return
@@ -208,9 +208,9 @@ func main() {
 	})
 	// Команда для удаления напоминания по ID
 	bot.Handle("/deleteuser", func(m *telebot.Message) {
-		args := strings.Split(m.Text, " ")
-		if len(args) != 1 {
-			bot.Send(m.Chat, "Укажите только ID пользователя, которого хотите удалить.")
+		args := strings.Fields(strings.TrimSpace(m.Text))
+		if len(args) < 2 {
+			bot.Send(m.Chat, "Укажите ID напоминания, которое хотите удалить.")
 			return
 		}
 
