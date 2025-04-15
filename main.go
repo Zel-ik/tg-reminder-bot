@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"github.com/go-pg/pg/v10"
 	"github.com/joho/godotenv"
 	"github.com/robfig/cron/v3"
-	"github.com/tucnak/telebot"
+	telebot "gopkg.in/telebot.v3"
 )
 
 // Структура пользователя
@@ -52,6 +53,7 @@ func main() {
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	})
+	bot.Use(AdminMiddleware)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,11 +110,11 @@ func main() {
 	c.Start()
 
 	// Команда для добавления нескольких пользователей
-	bot.Handle("/addusers", func(m *telebot.Message) {
-		args := strings.Split(m.Text, " ")[1:] // Берем все аргументы после команды
+	bot.Handle("/addusers", func(m telebot.Context) error {
+		args := strings.Split(m.Text(), " ")[1:] // Берем все аргументы после команды
 		if len(args) == 0 {
-			bot.Send(m.Chat, "Используй: /addusers @user1 @user2 @user3")
-			return
+			bot.Send(m.Chat(), "Используй: /addusers @user1 @user2 @user3")
+			return errors.New("неправильный формат")
 		}
 
 		var addedUsers []string
@@ -124,7 +126,7 @@ func main() {
 			}
 
 			// Добавляем пользователя в базу данных без проверки уникальности
-			user := &User{Username: username, ChatID: m.Chat.ID}
+			user := &User{Username: username, ChatID: m.Chat().ID}
 			_, err := db.Model(user).Insert()
 			if err != nil {
 				log.Println("Ошибка при добавлении пользователя:", err)
@@ -135,37 +137,39 @@ func main() {
 		}
 
 		if len(addedUsers) == 0 {
-			bot.Send(m.Chat, "Не удалось добавить пользователей.")
-			return
+			bot.Send(m.Chat(), "Не удалось добавить пользователей.")
+			return errors.New("не удалость добавить пользователя")
 		}
 
-		bot.Send(m.Chat, fmt.Sprintf("Добавлены пользователи: %s", strings.Join(addedUsers, ", ")))
+		bot.Send(m.Chat(), fmt.Sprintf("Добавлены пользователи: %s", strings.Join(addedUsers, ", ")))
+		return nil
 	})
 
 	// Команда для добавления пользователя
-	bot.Handle("/adduser", func(m *telebot.Message) {
-		addUser(m.Sender.Username, m.Chat.ID)
-		bot.Send(m.Chat, "Ты был добавлен в список пользователей!")
+	bot.Handle("/adduser", func(m telebot.Context) error {
+		addUser(m.Sender().Username, m.Chat().ID)
+		bot.Send(m.Chat(), "Ты был добавлен в список пользователей!")
+		return nil
 	})
 
 	// Команда для установки напоминания с временем и chat_id
-	bot.Handle("/setreminder", func(m *telebot.Message) {
-		reminderText := m.Text
-		chatID := m.Chat.ID
+	bot.Handle("/setreminder", func(m telebot.Context) error {
+		reminderText := m.Text()
+		chatID := m.Chat().ID
 
 		// Ищем время в сообщении
 		matches := timeRegex.FindStringSubmatch(reminderText)
 		if len(matches) != 3 {
-			bot.Send(m.Chat, "Неверный формат! Используй: /setreminder HH:MM текст напоминания")
-			return
+			bot.Send(m.Chat(), "Неверный формат! Используй: /setreminder HH:MM текст напоминания")
+			return errors.New("неверный формат! Используй: /setreminder HH:MM текст напоминания")
 		}
 
 		// Преобразуем время в числа
 		hour, _ := strconv.Atoi(matches[1])
 		minute, _ := strconv.Atoi(matches[2])
 		if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
-			bot.Send(m.Chat, "Неверное время! Используй формат HH:MM, например, 09:30")
-			return
+			bot.Send(m.Chat(), "Неверное время! Используй формат HH:MM, например, 09:30")
+			return errors.New("неверное время! Используй формат HH:MM, например, 09:30")
 		}
 
 		// Убираем время и '/setreminder' из текста
@@ -175,7 +179,7 @@ func main() {
 		// Сохраняем напоминание в БД
 		addReminder(cleanReminder, fmt.Sprintf("%02d:%02d", hour, minute), chatID)
 
-		bot.Send(m.Chat, fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
+		bot.Send(m.Chat(), fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
 
 		now := time.Now().UTC().Unix()
 		mskTime := time.Unix(now, 0).UTC()
@@ -187,67 +191,74 @@ func main() {
 		c.AddFunc(cronTime, func() {
 			sendReminderToUsers(cleanReminder, chatID)
 		})
+		return nil
 	})
 
 	// Команда для удаления напоминания по ID
-	bot.Handle("/deletereminder", func(m *telebot.Message) {
-		args := strings.Fields(strings.TrimSpace(m.Text))
+	bot.Handle("/deletereminder", func(m telebot.Context) error {
+		args := strings.Fields(strings.TrimSpace(m.Text()))
 		if len(args) < 2 {
-			bot.Send(m.Chat, "Укажите ID напоминания, которое хотите удалить.")
-			return
+			bot.Send(m.Chat(), "Укажите ID напоминания, которое хотите удалить.")
+			return errors.New("укажите ID напоминания, которое хотите удалить")
 		}
 
 		reminderID, err := strconv.ParseInt(args[1], 10, 64)
 		if err != nil {
-			bot.Send(m.Chat, "Неверный формат ID напоминания.")
-			return
+			bot.Send(m.Chat(), "Неверный формат ID напоминания.")
+			return errors.New("неверный формат ID напоминания")
 		}
 
 		deleteReminder(reminderID)
-		bot.Send(m.Chat, fmt.Sprintf("Напоминание с ID %d удалено.", reminderID))
+		bot.Send(m.Chat(), fmt.Sprintf("Напоминание с ID %d удалено.", reminderID))
+		return nil
 	})
 	// Команда для удаления напоминания по ID
-	bot.Handle("/deleteuser", func(m *telebot.Message) {
-		args := strings.Fields(strings.TrimSpace(m.Text))
+	bot.Handle("/deleteuser", func(m telebot.Context) error {
+		args := strings.Fields(strings.TrimSpace(m.Text()))
 		if len(args) < 2 {
-			bot.Send(m.Chat, "Укажите ID напоминания, которое хотите удалить.")
-			return
+			bot.Send(m.Chat(), "Укажите ID напоминания, которое хотите удалить.")
+			return errors.New("укажите ID напоминания, которое хотите удалить")
 		}
 
 		userID, err := strconv.ParseInt(args[1], 10, 64)
 		if err != nil {
-			bot.Send(m.Chat, "Неверный формат ID пользователя.")
-			return
+			bot.Send(m.Chat(), "Неверный формат ID пользователя.")
+			return errors.New("неверный формат ID пользователя")
 		}
 
 		deleteUser(userID)
-		bot.Send(m.Chat, fmt.Sprintf("Пользователь с ID %d удален.", userID))
+		bot.Send(m.Chat(), fmt.Sprintf("Пользователь с ID %d удален.", userID))
+		return nil
 	})
 
 	// Обработчик команды /updatecron
-	bot.Handle("/updatecron", func(m *telebot.Message) {
+	bot.Handle("/updatecron", func(m telebot.Context) error {
 		updateCron(c, db, bot)
-		bot.Send(m.Chat, "Расписание напоминаний обновлено")
+		bot.Send(m.Chat(), "Расписание напоминаний обновлено")
+		return nil
 	})
 
 	// Команда для получения списка пользователей
-	bot.Handle("/listusers", func(m *telebot.Message) {
-		message, err := listUsers(m.Chat.ID)
+	bot.Handle("/listusers", func(m telebot.Context) error {
+		message, err := listUsers(m.Chat().ID)
 		if err != nil {
 			log.Println("Ошибка при получении пользователей:", err)
+			return errors.New("ошибка при получении пользователей")
 		}
-		bot.Send(m.Chat, message)
+		bot.Send(m.Chat(), message)
+		return nil
 	})
 
 	// Команда для получения списка напоминаний
-	bot.Handle("/listreminders", func(m *telebot.Message) {
-		message, err := listReminders(m.Chat.ID)
+	bot.Handle("/listreminders", func(m telebot.Context) error {
+		message, err := listReminders(m.Chat().ID)
 		if err != nil {
 			log.Println("Ошибка при получении напоминаний:", err)
-			bot.Send(m.Chat, "Произошла ошибка при получении напоминаний.")
-			return
+			bot.Send(m.Chat(), "Произошла ошибка при получении напоминаний.")
+			return errors.New("произошла ошибка при получении напоминаний")
 		}
-		bot.Send(m.Chat, message)
+		bot.Send(m.Chat(), message)
+		return nil
 	})
 
 	// Запускаем бота
