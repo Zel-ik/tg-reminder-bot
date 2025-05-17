@@ -273,10 +273,9 @@ func main() {
 		return nil
 	})
 
+	bot.Use(AdminMiddleware)
 	// Запускаем бота
 	bot.Start()
-
-	bot.Use(AdminMiddleware)
 
 }
 
