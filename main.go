@@ -25,10 +25,11 @@ type User struct {
 
 // Структура напоминания
 type Reminder struct {
-	ID       int64
-	Text     string
-	SendTime string // Храним время как строку "HH:MM"
-	ChatID   int64
+	ID          int64
+	Text        string
+	SendTime    string // Храним время как строку "HH:MM"
+	ChatID      int64
+	CrownTaskId cron.EntryID
 }
 
 func main() {
@@ -53,7 +54,6 @@ func main() {
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	})
-	bot.Use(AdminMiddleware)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -177,9 +177,6 @@ func main() {
 		cleanReminder = strings.Replace(cleanReminder, "/setreminder", "", 1)
 
 		// Сохраняем напоминание в БД
-		addReminder(cleanReminder, fmt.Sprintf("%02d:%02d", hour, minute), chatID)
-
-		bot.Send(m.Chat(), fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
 
 		now := time.Now().UTC().Unix()
 		mskTime := time.Unix(now, 0).UTC()
@@ -188,9 +185,17 @@ func main() {
 		// Добавляем задачу в cron (по локальному времени сервера)
 		cronTime := fmt.Sprintf("%d %d * * 1-5", sendTimeUTC.Minute(), sendTimeUTC.Hour())
 
-		c.AddFunc(cronTime, func() {
+		taskId, err := c.AddFunc(cronTime, func() {
 			sendReminderToUsers(cleanReminder, chatID)
 		})
+		if err != nil {
+			return errors.New("не удалось создать задачу в расписании Cron")
+		}
+
+		addReminder(cleanReminder, fmt.Sprintf("%02d:%02d", hour, minute), chatID, taskId)
+
+		bot.Send(m.Chat(), fmt.Sprintf("Напоминание сохранено! Оно будет отправлено в %02d:%02d по московскому времени.", hour, minute))
+
 		return nil
 	})
 
@@ -208,10 +213,17 @@ func main() {
 			return errors.New("неверный формат ID напоминания")
 		}
 
-		deleteReminder(reminderID)
+		entityId, err := deleteReminder(reminderID)
+		if err != nil {
+			bot.Send(m.Chat(), "Напоминание с данным id не существует")
+			return err
+		}
+		c.Remove(cron.EntryID(entityId))
+
 		bot.Send(m.Chat(), fmt.Sprintf("Напоминание с ID %d удалено.", reminderID))
 		return nil
 	})
+
 	// Команда для удаления напоминания по ID
 	bot.Handle("/deleteuser", func(m telebot.Context) error {
 		args := strings.Fields(strings.TrimSpace(m.Text()))
@@ -263,6 +275,9 @@ func main() {
 
 	// Запускаем бота
 	bot.Start()
+
+	bot.Use(AdminMiddleware)
+
 }
 
 // Функция обновления Cron с учетом временных зон
@@ -307,7 +322,7 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 		}
 		message.WriteString(r.Text)
 		// Добавляем в cron
-		c.AddFunc(cronTime, func(chatID int64, text string) func() {
+		taskId, _ := c.AddFunc(cronTime, func(chatID int64, text string) func() {
 			return func() {
 				day := time.Now().Weekday()
 				if day < time.Monday || day > time.Friday {
@@ -318,7 +333,10 @@ func updateCron(c *cron.Cron, db *pg.DB, bot *telebot.Bot) {
 				bot.Send(&telebot.Chat{ID: chatID}, text)
 			}
 		}(r.ChatID, message.String()))
+		r.CrownTaskId = taskId
 	}
+
+	updateReminders(reminders)
 	c.Start()
 	log.Println("✅ Cron обновлён для корректного времени!")
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/go-pg/pg/v10"
 	"github.com/joho/godotenv"
+	"github.com/robfig/cron/v3"
 )
 
 // Подключение к базе данных PostgreSQL
@@ -102,11 +104,26 @@ func listUsers(chatID int64) (string, error) {
 }
 
 // Функция удаления напоминания по ID
-func deleteReminder(id int64) {
+func deleteReminder(id int64) (int, error) {
 	reminder := &Reminder{ID: id}
-	_, err := db.Model(reminder).Where("id = ?", id).Delete()
+	err := db.Model(reminder).Where("id = ?", id).First()
 	if err != nil {
-		log.Println("Ошибка при удалении напоминания:", err)
+		return 0, errors.New("не найдено напоминание с данным id")
+	}
+
+	db.Model(reminder).Where("id = ?", id).Delete()
+	return int(reminder.CrownTaskId), nil
+}
+
+func updateReminders(reminders []Reminder) {
+	for _, r := range reminders {
+		_, err := db.Model(&r).
+			Column("crown_task_id").
+			WherePK().
+			Update()
+		if err != nil {
+			log.Printf("Failed to update reminder id %d: %v", r.ID, err)
+		}
 	}
 }
 
@@ -120,11 +137,27 @@ func deleteUser(id int64) {
 }
 
 // Функция добавления напоминания с временем и chat_id
-func addReminder(text string, sendTime string, chatID int64) {
-	reminder := &Reminder{Text: text, SendTime: sendTime, ChatID: chatID}
+func addReminder(text string, sendTime string, chatID int64, entryId cron.EntryID) {
+	reminder := &Reminder{Text: text, SendTime: sendTime, ChatID: chatID, CrownTaskId: entryId}
 	_, err := db.Model(reminder).Insert()
 	if err != nil {
 		log.Println("Ошибка при добавлении напоминания:", err)
+	}
+
+	var users []User
+	err = db.Model(&users).Where("chat_id = ?", chatID).Select()
+	if err != nil {
+		log.Println("Ошибка при получении пользователей:", err)
+	}
+
+	// Создаем связи в reminders_users
+	for _, user := range users {
+		_, err := db.Exec(`
+			INSERT INTO reminders_users (reminder_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
+		`, reminder.ID, user.ID)
+		if err != nil {
+			log.Printf("Ошибка при добавлении связи reminder_id=%d user_id=%d: %v\n", reminder.ID, user.ID, err)
+		}
 	}
 }
 
