@@ -58,6 +58,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	bot.Use(AdminMiddleware)
+
 	// Регулярное выражение для поиска времени в формате HH:MM
 	timeRegex := regexp.MustCompile(`\b(\d{1,2}):(\d{2})\b`)
 
@@ -273,7 +275,6 @@ func main() {
 		return nil
 	})
 
-	bot.Use(AdminMiddleware)
 	// Запускаем бота
 	bot.Start()
 
