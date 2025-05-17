@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS reminders (
 
 ALTER TABLE reminders 
 ADD COLUMN IF NOT EXISTS
-crown_task_id INT NOT NULL;
+crown_task_id INT;
 
 CREATE TABLE IF NOT EXISTS reminders_users (
     reminder_id INT REFERENCES reminders(id) ON DELETE CASCADE,
