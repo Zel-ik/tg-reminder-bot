@@ -54,11 +54,11 @@ func main() {
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	})
+	bot.Use(AdminMiddleware)
+
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	bot.Use(AdminMiddleware)
 
 	// Регулярное выражение для поиска времени в формате HH:MM
 	timeRegex := regexp.MustCompile(`\b(\d{1,2}):(\d{2})\b`)
@@ -277,7 +277,6 @@ func main() {
 
 	// Запускаем бота
 	bot.Start()
-
 }
 
 // Функция обновления Cron с учетом временных зон
