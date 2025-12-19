@@ -40,7 +40,9 @@ func RegisterHandlers(b *telebot.Bot, db *sql.DB, sch *scheduler.Scheduler) {
 	})
 
 	b.Handle(telebot.OnText, func(c telebot.Context) error {
-		if !isMessageToBot(b, c.Message()) {
+		state := GetUserState(c.Message().Sender.ID)
+		if state == nil {
+			// Нет состояния для пользователя — игнорируем сообщение
 			return nil
 		}
 		handleState(b, db, sch, c.Message())
