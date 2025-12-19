@@ -171,34 +171,32 @@ func reloadJob(db *sql.DB, sch *scheduler.Scheduler, name string) error {
 
 	// Загружаем обновлённые данные
 	row := db.QueryRow(`
-		SELECT r.chat_id, r.message, r.cron_expr, ARRAY_AGG(ru.username)
-		FROM reminders r
-		LEFT JOIN reminder_users ru ON r.id = ru.reminder_id
-		WHERE r.name = $1
-		GROUP BY r.id`, name)
+	SELECT r.chat_id, r.message, r.cron_expr, ARRAY_AGG(ru.username)
+	FROM reminders r
+	LEFT JOIN reminder_users ru ON r.id = ru.reminder_id
+	WHERE r.name = $1
+	GROUP BY r.id
+`, name)
 
 	var chatID int64
 	var message, cronExpr string
-	var usernames []sql.NullString
+	var usernames string // <- сканируем массив как string
+
 	if err := row.Scan(&chatID, &message, &cronExpr, &usernames); err != nil {
 		return err
 	}
 
-	var names []string
-	for _, u := range usernames {
-		if u.Valid {
-			names = append(names, u.String)
-		}
-	}
-
-	if len(names) == 0 {
-		return nil // не добавляем, если нет получателей
+	// usernames приходит как "{@one,@two,@three}"
+	usernames = strings.Trim(usernames, "{}")
+	usernameList := strings.Split(usernames, ",")
+	for i, u := range usernameList {
+		usernameList[i] = strings.TrimSpace(u)
 	}
 
 	job := &scheduler.Job{
-		Bot:       sch.Bot, // ссылка на бота
+		Bot:       sch.Bot,
 		ChatID:    chatID,
-		Usernames: names, // теперь username
+		Usernames: usernameList,
 		Message:   message,
 	}
 	return sch.AddJob(name, cronExpr, job)

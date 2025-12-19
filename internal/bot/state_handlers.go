@@ -18,7 +18,7 @@ func handleState(b *telebot.Bot, db *sql.DB, sch *scheduler.Scheduler, msg *tele
 
 	text := strings.TrimSpace(extractPlainTextAfterBotMention(b, msg))
 
-	if text == "/cancel" {
+	if text == "cancel" {
 		ClearUserState(msg.Sender.ID)
 		b.Send(msg.Chat, "Операция отменена.")
 		return true

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -21,11 +22,6 @@ type Job struct {
 }
 
 func (j *Job) Run() {
-	if j.Bot == nil {
-		fmt.Println("Bot is nil, cannot send reminder")
-		return
-	}
-
 	chat := &telebot.Chat{ID: j.ChatID}
 
 	// Собираем строку с упоминаниями через @, без HTML-обрамления
@@ -100,6 +96,7 @@ func (s *Scheduler) AddJob(name, cronExpr string, job *Job) error {
 		return err
 	}
 	s.jobs[name] = entryID
+	log.Print("created Job")
 	return nil
 }
 
@@ -117,16 +114,5 @@ func (s *Scheduler) Stop(ctx context.Context) {
 	if s.started {
 		s.cron.Stop()
 		// cron не блокирует, но можно подождать, если нужно
-	}
-}
-
-func (s *Scheduler) ListJobs() {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	fmt.Println("Scheduled jobs:")
-	for name, entryID := range s.jobs {
-		entry := s.cron.Entry(entryID)
-		fmt.Printf("- Name: %s, Next: %s, Prev: %s\n", name, entry.Next, entry.Prev)
 	}
 }
