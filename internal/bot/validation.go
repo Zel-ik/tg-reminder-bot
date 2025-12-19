@@ -8,10 +8,10 @@ import (
 )
 
 func parseUsernames(input string) ([]string, error) {
-	parts := strings.Split(input, ",")
+	parts := strings.Fields(input) // split by any whitespace
 	var usernames []string
-	for _, p := range parts {
-		u := strings.TrimSpace(p)
+	for _, u := range parts {
+		u = strings.TrimSpace(u)
 		if u == "" {
 			continue
 		}

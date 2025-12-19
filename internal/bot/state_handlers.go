@@ -31,13 +31,13 @@ func handleState(b *telebot.Bot, db *sql.DB, sch *scheduler.Scheduler, msg *tele
 		} else {
 			state.Data["cron_expr"] = cronExpr
 			state.Step = "create_waiting_users"
-			b.Send(msg.Chat, "Введите имя пользователей через запятую (например: @someName, @nameTwo):")
+			b.Send(msg.Chat, "Укажите username. Пример: @one @magma @gsgs")
 		}
 		return true
 
 	case "create_waiting_users":
 		if usernames, err := parseUsernames(text); err != nil || len(usernames) == 0 {
-			b.Send(msg.Chat, "❌ Укажите корректные username через запятую. Пример: @one,@magma,@gsgs")
+			b.Send(msg.Chat, "❌ Укажите username. Пример: @one @magma @gsgs")
 		} else {
 			state.Data["usernames"] = usernames
 			state.Step = "create_waiting_message"
@@ -91,7 +91,7 @@ func handleState(b *telebot.Bot, db *sql.DB, sch *scheduler.Scheduler, msg *tele
 			case "edit_time":
 				b.Send(msg.Chat, "Введите новое время или cron:")
 			case "edit_users":
-				b.Send(msg.Chat, "Введите пользователей (через запятую) или: add 123 / delete 456")
+				b.Send(msg.Chat, "Введите пользователей для добавление через add (Пример: add @Zel @alko) или через delete для удаления(Пример: delete @Zel)")
 			}
 		}
 		return true

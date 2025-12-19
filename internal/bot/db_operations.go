@@ -117,15 +117,16 @@ func updateReminderCron(db *sql.DB, sch *scheduler.Scheduler, name, newCron stri
 
 // Обновление пользователей (поддержка "add 123,456" / "delete 789")
 func updateReminderUsers(db *sql.DB, sch *scheduler.Scheduler, name, input string) error {
-	var newUsers []string
+	var users []string
 	var err error
 
-	if strings.HasPrefix(input, "add ") {
-		newUsers, err = parseUsernames(strings.TrimPrefix(input, "add "))
-	} else if strings.HasPrefix(input, "delete ") {
-		newUsers, err = parseUsernames(strings.TrimPrefix(input, "delete "))
-	} else {
-		newUsers, err = parseUsernames(input)
+	switch {
+	case strings.HasPrefix(input, "add "):
+		users, err = parseUsernames(strings.TrimPrefix(input, "add "))
+	case strings.HasPrefix(input, "delete "):
+		users, err = parseUsernames(strings.TrimPrefix(input, "delete "))
+	default:
+		users, err = parseUsernames(input)
 	}
 
 	if err != nil {
@@ -143,18 +144,29 @@ func updateReminderUsers(db *sql.DB, sch *scheduler.Scheduler, name, input strin
 		return err
 	}
 
-	if strings.HasPrefix(input, "add ") {
-		for _, u := range newUsers {
-			tx.Exec("INSERT INTO reminder_users (reminder_id, username) VALUES ($1,$2) ON CONFLICT DO NOTHING", remID, u)
+	switch {
+	case strings.HasPrefix(input, "add "):
+		for _, u := range users {
+			_, _ = tx.Exec(
+				"INSERT INTO reminder_users (reminder_id, username) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+				remID, u,
+			)
 		}
-	} else if strings.HasPrefix(input, "delete ") {
-		for _, u := range newUsers {
-			tx.Exec("DELETE FROM reminder_users WHERE reminder_id=$1 AND username=$2", remID, u)
+	case strings.HasPrefix(input, "delete "):
+		for _, u := range users {
+			_, _ = tx.Exec(
+				"DELETE FROM reminder_users WHERE reminder_id=$1 AND username=$2",
+				remID, u,
+			)
 		}
-	} else {
-		tx.Exec("DELETE FROM reminder_users WHERE reminder_id=$1", remID)
-		for _, u := range newUsers {
-			tx.Exec("INSERT INTO reminder_users (reminder_id, username) VALUES ($1,$2)", remID, u)
+	default:
+		// Полная замена
+		_, _ = tx.Exec("DELETE FROM reminder_users WHERE reminder_id=$1", remID)
+		for _, u := range users {
+			_, _ = tx.Exec(
+				"INSERT INTO reminder_users (reminder_id, username) VALUES ($1, $2)",
+				remID, u,
+			)
 		}
 	}
 

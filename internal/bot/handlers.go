@@ -10,32 +10,32 @@ import (
 
 func RegisterHandlers(b *telebot.Bot, db *sql.DB, sch *scheduler.Scheduler) {
 	b.Handle("/create", func(c telebot.Context) error {
-		onCreate(b, c.Message(), db, sch)
+		onCreate(b, c.Message())
 		return nil
 	})
 
 	b.Handle("/list", func(c telebot.Context) error {
-		onList(b, c.Message(), db, sch)
+		onList(b, c.Message(), db)
 		return nil
 	})
 
 	b.Handle("/delete", func(c telebot.Context) error {
-		onDeleteStart(b, c.Message(), db, sch)
+		onDeleteStart(b, c.Message(), db)
 		return nil
 	})
 
-	b.Handle("/editMessage", func(c telebot.Context) error {
-		onEditStart(b, c.Message(), db, sch, "edit_message")
+	b.Handle("/message", func(c telebot.Context) error {
+		onEditStart(b, c.Message(), db, "edit_message")
 		return nil
 	})
 
-	b.Handle("/editTime", func(c telebot.Context) error {
-		onEditStart(b, c.Message(), db, sch, "edit_time")
+	b.Handle("/time", func(c telebot.Context) error {
+		onEditStart(b, c.Message(), db, "edit_time")
 		return nil
 	})
 
-	b.Handle("/editUsers", func(c telebot.Context) error {
-		onEditStart(b, c.Message(), db, sch, "edit_users")
+	b.Handle("/users", func(c telebot.Context) error {
+		onEditStart(b, c.Message(), db, "edit_users")
 		return nil
 	})
 

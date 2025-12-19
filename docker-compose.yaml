@@ -23,7 +23,7 @@ services:
     build: .
     restart: on-failure
     environment:
-      TELEGRAM_TOKEN: "7676580212:AAEVjbSCbUu9BrcpVH35rZq3ygE7vVdknWc"
+      TELEGRAM_TOKEN: "7676580212:AAGn4ZiBfjkgbC_QYpH3aWISVmub6NyqWt0"
       DATABASE_URL: "postgres://user:password@db:5432/reminders?sslmode=disable"
       TZ_OFFSET: +3
     depends_on:
