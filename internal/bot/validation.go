@@ -3,25 +3,27 @@ package bot
 
 import (
 	"database/sql"
-	"strconv"
+	"fmt"
 	"strings"
 )
 
-func parseUserIDs(input string) ([]int64, error) {
+func parseUsernames(input string) ([]string, error) {
 	parts := strings.Split(input, ",")
-	var ids []int64
+	var usernames []string
 	for _, p := range parts {
-		s := strings.TrimSpace(p)
-		if s == "" {
+		u := strings.TrimSpace(p)
+		if u == "" {
 			continue
 		}
-		id, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return nil, err
+		if !strings.HasPrefix(u, "@") {
+			u = "@" + u
 		}
-		ids = append(ids, id)
+		usernames = append(usernames, u)
 	}
-	return ids, nil
+	if len(usernames) == 0 {
+		return nil, fmt.Errorf("нет корректных username")
+	}
+	return usernames, nil
 }
 
 func isReminderNameUnique(db *sql.DB, name string) bool {

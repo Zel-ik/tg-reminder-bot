@@ -18,6 +18,5 @@ WORKDIR /root/
 
 # Копируем бинарник и init.sql
 COPY --from=builder /app/bot .
-COPY --from=builder /app/init.sql .
 
 CMD ["./bot"]

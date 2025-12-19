@@ -8,17 +8,8 @@ CREATE TABLE IF NOT EXISTS reminders (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Таблица пользователей (опционально, но удобно)
--- Можно хранить только ID, но для отладки и читаемости — имя
-CREATE TABLE IF NOT EXISTS users (
-    user_id BIGINT PRIMARY KEY,
-    username TEXT,
-    full_name TEXT
-);
-
--- Связь многие-ко-многим: напоминание → пользователи
 CREATE TABLE IF NOT EXISTS reminder_users (
     reminder_id INT REFERENCES reminders(id) ON DELETE CASCADE,
-    user_id BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
-    PRIMARY KEY (reminder_id, user_id)
+    username TEXT NOT NULL,
+    PRIMARY KEY (reminder_id, username)
 );

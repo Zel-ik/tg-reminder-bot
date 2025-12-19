@@ -15,7 +15,7 @@ import (
 func sendRemindersList(b *telebot.Bot, db *sql.DB, chat *telebot.Chat) {
 	rows, err := db.Query(`
 		SELECT r.name, r.message, r.cron_expr,
-		       COALESCE(STRING_AGG(ru.user_id::TEXT, ', '), '—') AS user_ids
+		       COALESCE(STRING_AGG(ru.username, ', '), '—') AS usernames
 		FROM reminders r
 		LEFT JOIN reminder_users ru ON r.id = ru.reminder_id
 		GROUP BY r.id
@@ -49,7 +49,7 @@ func saveReminder(db *sql.DB, sch *scheduler.Scheduler, b *telebot.Bot, chatID i
 	name := data["name"].(string)
 	message := data["message"].(string)
 	cronExpr := data["cron_expr"].(string)
-	userIDs := data["user_ids"].([]int64)
+	usernames := data["usernames"].([]string) // <-- теперь username
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -66,8 +66,8 @@ func saveReminder(db *sql.DB, sch *scheduler.Scheduler, b *telebot.Bot, chatID i
 		return err
 	}
 
-	for _, uid := range userIDs {
-		_, err = tx.Exec("INSERT INTO reminder_users (reminder_id, user_id) VALUES ($1, $2)", remID, uid)
+	for _, u := range usernames {
+		_, err = tx.Exec("INSERT INTO reminder_users (reminder_id, username) VALUES ($1, $2)", remID, u)
 		if err != nil {
 			return err
 		}
@@ -78,10 +78,10 @@ func saveReminder(db *sql.DB, sch *scheduler.Scheduler, b *telebot.Bot, chatID i
 	}
 
 	job := &scheduler.Job{
-		Bot:     b,
-		ChatID:  chatID,
-		UserIDs: userIDs,
-		Message: message,
+		Bot:       b,
+		ChatID:    chatID,
+		Usernames: usernames, // <-- поле Usernames
+		Message:   message,
 	}
 	return sch.AddJob(name, cronExpr, job)
 }
@@ -117,25 +117,19 @@ func updateReminderCron(db *sql.DB, sch *scheduler.Scheduler, name, newCron stri
 
 // Обновление пользователей (поддержка "add 123,456" / "delete 789")
 func updateReminderUsers(db *sql.DB, sch *scheduler.Scheduler, name, input string) error {
-	var newIDs []int64
+	var newUsers []string
 	var err error
 
 	if strings.HasPrefix(input, "add ") {
-		newIDs, err = parseUserIDs(strings.TrimPrefix(input, "add "))
-		if err != nil {
-			return fmt.Errorf("ошибка в add: %w", err)
-		}
+		newUsers, err = parseUsernames(strings.TrimPrefix(input, "add "))
 	} else if strings.HasPrefix(input, "delete ") {
-		newIDs, err = parseUserIDs(strings.TrimPrefix(input, "delete "))
-		if err != nil {
-			return fmt.Errorf("ошибка в delete: %w", err)
-		}
+		newUsers, err = parseUsernames(strings.TrimPrefix(input, "delete "))
 	} else {
-		// Полная замена
-		newIDs, err = parseUserIDs(input)
-		if err != nil {
-			return err
-		}
+		newUsers, err = parseUsernames(input)
+	}
+
+	if err != nil {
+		return fmt.Errorf("ошибка обработки usernames: %w", err)
 	}
 
 	tx, err := db.Begin()
@@ -145,24 +139,22 @@ func updateReminderUsers(db *sql.DB, sch *scheduler.Scheduler, name, input strin
 	defer tx.Rollback()
 
 	var remID int64
-	err = tx.QueryRow("SELECT id FROM reminders WHERE name = $1", name).Scan(&remID)
-	if err != nil {
+	if err := tx.QueryRow("SELECT id FROM reminders WHERE name=$1", name).Scan(&remID); err != nil {
 		return err
 	}
 
 	if strings.HasPrefix(input, "add ") {
-		for _, uid := range newIDs {
-			tx.Exec("INSERT INTO reminder_users (reminder_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", remID, uid)
+		for _, u := range newUsers {
+			tx.Exec("INSERT INTO reminder_users (reminder_id, username) VALUES ($1,$2) ON CONFLICT DO NOTHING", remID, u)
 		}
 	} else if strings.HasPrefix(input, "delete ") {
-		for _, uid := range newIDs {
-			tx.Exec("DELETE FROM reminder_users WHERE reminder_id = $1 AND user_id = $2", remID, uid)
+		for _, u := range newUsers {
+			tx.Exec("DELETE FROM reminder_users WHERE reminder_id=$1 AND username=$2", remID, u)
 		}
 	} else {
-		// Полная замена
-		tx.Exec("DELETE FROM reminder_users WHERE reminder_id = $1", remID)
-		for _, uid := range newIDs {
-			tx.Exec("INSERT INTO reminder_users (reminder_id, user_id) VALUES ($1, $2)", remID, uid)
+		tx.Exec("DELETE FROM reminder_users WHERE reminder_id=$1", remID)
+		for _, u := range newUsers {
+			tx.Exec("INSERT INTO reminder_users (reminder_id, username) VALUES ($1,$2)", remID, u)
 		}
 	}
 
@@ -179,7 +171,7 @@ func reloadJob(db *sql.DB, sch *scheduler.Scheduler, name string) error {
 
 	// Загружаем обновлённые данные
 	row := db.QueryRow(`
-		SELECT r.chat_id, r.message, r.cron_expr, ARRAY_AGG(ru.user_id)
+		SELECT r.chat_id, r.message, r.cron_expr, ARRAY_AGG(ru.username)
 		FROM reminders r
 		LEFT JOIN reminder_users ru ON r.id = ru.reminder_id
 		WHERE r.name = $1
@@ -187,27 +179,27 @@ func reloadJob(db *sql.DB, sch *scheduler.Scheduler, name string) error {
 
 	var chatID int64
 	var message, cronExpr string
-	var userIDs []sql.NullInt64
-	if err := row.Scan(&chatID, &message, &cronExpr, &userIDs); err != nil {
+	var usernames []sql.NullString
+	if err := row.Scan(&chatID, &message, &cronExpr, &usernames); err != nil {
 		return err
 	}
 
-	var ids []int64
-	for _, uid := range userIDs {
-		if uid.Valid {
-			ids = append(ids, uid.Int64)
+	var names []string
+	for _, u := range usernames {
+		if u.Valid {
+			names = append(names, u.String)
 		}
 	}
 
-	if len(ids) == 0 {
+	if len(names) == 0 {
 		return nil // не добавляем, если нет получателей
 	}
 
 	job := &scheduler.Job{
-		Bot:     sch.Bot, // предполагается, что scheduler хранит ссылку на Bot
-		ChatID:  chatID,
-		UserIDs: ids,
-		Message: message,
+		Bot:       sch.Bot, // ссылка на бота
+		ChatID:    chatID,
+		Usernames: names, // теперь username
+		Message:   message,
 	}
 	return sch.AddJob(name, cronExpr, job)
 }

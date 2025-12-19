@@ -36,10 +36,10 @@ func handleState(b *telebot.Bot, db *sql.DB, sch *scheduler.Scheduler, msg *tele
 		return true
 
 	case "create_waiting_users":
-		if userIDs, err := parseUserIDs(text); err != nil || len(userIDs) == 0 {
-			b.Send(msg.Chat, "❌ Укажите корректные ID через запятую.")
+		if usernames, err := parseUsernames(text); err != nil || len(usernames) == 0 {
+			b.Send(msg.Chat, "❌ Укажите корректные username через запятую. Пример: @one,@magma,@gsgs")
 		} else {
-			state.Data["user_ids"] = userIDs
+			state.Data["usernames"] = usernames
 			state.Step = "create_waiting_message"
 			b.Send(msg.Chat, "Введите сообщение для напоминания:")
 		}
@@ -112,6 +112,11 @@ func handleState(b *telebot.Bot, db *sql.DB, sch *scheduler.Scheduler, msg *tele
 				err = updateReminderCron(db, sch, target, cron)
 			}
 		case "edit_users":
+			// text теперь содержит "@username @othername"
+			if len(text) == 0 {
+				b.Send(msg.Chat, "❌ Укажите хотя бы одного пользователя через пробел (@username).")
+				return true
+			}
 			err = updateReminderUsers(db, sch, target, text)
 		}
 

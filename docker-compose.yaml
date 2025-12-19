@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: password
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./migrations:/migrations
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     healthcheck:
@@ -25,6 +25,7 @@ services:
     environment:
       TELEGRAM_TOKEN: "7676580212:AAEVjbSCbUu9BrcpVH35rZq3ygE7vVdknWc"
       DATABASE_URL: "postgres://user:password@db:5432/reminders?sslmode=disable"
+      TZ_OFFSET: +3
     depends_on:
       db:
         condition: service_healthy

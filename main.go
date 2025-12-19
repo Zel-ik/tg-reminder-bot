@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -37,11 +36,6 @@ func main() {
 	}
 	defer database.Close()
 
-	// --- ИНИЦИАЛИЗАЦИЯ ТАБЛИЦ ---
-	if err := initDatabase(database); err != nil {
-		log.Fatalf("Failed to initialize database schema: %v", err)
-	}
-
 	// --- ИНИЦИАЛИЗАЦИЯ БОТА ---
 	b, err := telebot.NewBot(telebot.Settings{
 		Token:  token,
@@ -53,12 +47,12 @@ func main() {
 
 	// --- ИНИЦИАЛИЗАЦИЯ ПЛАНИРОВЩИКА ---
 	sch := scheduler.NewScheduler(b)
+	sch.Start()
 
 	// Загрузка напоминаний из базы
 	if err := bot.LoadRemindersFromDB(b, sch, database); err != nil {
 		log.Printf("Failed to load reminders: %v", err)
 	}
-	sch.Start()
 
 	// Регистрация обработчиков
 	bot.RegisterHandlers(b, database, sch)
@@ -74,22 +68,4 @@ func main() {
 	log.Println("Shutting down gracefully...")
 
 	sch.Stop(ctx)
-}
-
-// initDatabase читает init.sql и выполняет команды создания таблиц
-func initDatabase(database *sql.DB) error {
-	scriptPath := "./init.sql" // путь к вашему SQL-файлу
-
-	data, err := ioutil.ReadFile(scriptPath)
-	if err != nil {
-		return err
-	}
-
-	log.Println("Initializing database schema from init.sql...")
-	if _, err := database.Exec(string(data)); err != nil {
-		return err
-	}
-
-	log.Println("Database schema initialized successfully.")
-	return nil
 }
